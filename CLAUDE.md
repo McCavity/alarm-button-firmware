@@ -1,45 +1,48 @@
 # CLAUDE.md — alarm-button-firmware
 
-ESP32-S3-Firmware für den Homelab-Alarm-Button. Gegenstück zur ioBroker-Empfängerseite
+ESP32-S3 firmware for the homelab alarm button. Counterpart to the ioBroker receiver side
 ([iobroker-scripts](https://github.com/McCavity/iobroker-scripts), `scripts/.../alarm-*`).
 
-## Quellen der Wahrheit
+## Sources of truth
 
-- **MQTT-Vertrag + Designs liegen im privaten KI-OS-Vault** (`04-projects/alarm-button/`):
-  `mqtt-contract.md` (Topics/Payloads, Schema 1), `design-2026-05-16-mini.md` (Hardware/HAL),
-  `design-2026-06-07-orchestrator-selbsttest.md`. Bei Vertrags-/Verhaltensfragen dort nachsehen.
-- Die Datentypen in `lib/alarmcore/contract.h` spiegeln den Vertrag — bei Vertragsänderung
-  beide Seiten + `schema_version` gemeinsam anheben.
+- **The MQTT contract and design docs live in the author's private KI-OS vault**
+  (`04-projects/alarm-button/`): `mqtt-contract.md` (topics/payloads, schema 1),
+  `design-2026-05-16-mini.md` (hardware/HAL), `design-2026-06-07-orchestrator-selbsttest.md`.
+  Consult those for contract/behaviour questions.
+- The types in `lib/alarmcore/contract.h` mirror the contract — on a contract change,
+  bump both sides + `schema_version` together.
 
-## Architektur-Regeln
+## Architecture rules
 
-- **Core ist hardware-frei.** Alles in `lib/alarmcore/` muss nativ kompilieren (kein
-  `Arduino.h`, keine ESP-APIs). Hardware kommt ausschließlich hinter `AlarmButtonHAL`.
-- **HAL liefert abstrakte Events** (`navDelta`, `acknowledgePressed` …), nie „Encoder-Drehung" —
-  damit die parkierte LiliGo-3-Tasten-Variante unter denselben Core passt.
-- **Native-Test-first:** neue Core-Logik mit `pio test -e native` (TDD), bevor Hardware-Code
-  entsteht. Der ESP32-Build darf nie der einzige Verifikationspfad sein.
-- Defensiv parsen (fail-safe Felder, Parse-Fehler → `valid=false`) — analog zur ioBroker-Seite.
+- **The core is hardware-free.** Everything in `lib/alarmcore/` must compile natively (no
+  `Arduino.h`, no ESP APIs). Hardware lives only behind `AlarmButtonHAL`.
+- **The HAL exposes abstract events** (`navDelta`, `acknowledgePressed`, …), never "encoder
+  rotation" — so the parked LiliGo 3-button variant fits under the same core.
+- **Native-test-first:** drive new core logic with `pio test -e native` (TDD) before any
+  hardware code. The ESP32 build must never be the only verification path.
+- Parse defensively (fail-safe fields, parse error → `valid=false`) — like the ioBroker side.
 
-## Build / Test / Flash
+## Build / test / flash
 
 ```bash
-pio test -e native                    # Core host-testen
-pio run -e axiometa-mini              # Firmware bauen
-pio run -e axiometa-mini -t upload    # flashen
-pio device monitor -e axiometa-mini   # serielle Konsole (115200)
+pio test -e native                    # host-test the core
+pio run -e axiometa-mini              # build firmware
+pio run -e axiometa-mini -t upload    # flash
+pio device monitor -e axiometa-mini   # serial console (115200)
 ```
 
-## Hardware-Notizen
+## Hardware notes
 
-- Board: ESP32-S3, natives USB-CDC → erscheint als `/dev/cu.usbmodem*` (Datenkabel nötig,
-  Ladekabel zeigt keinen Port). Flash 4 MB.
-- **Vor dem ersten Flash immer die aktuelle Firmware sichern** (`esptool read_flash 0x0 0x400000 …`)
-  und in `archive/` ablegen. Die Werk-Demo liegt bereits dort.
-- AX22-Modul-Treiber / GENESIS-Arduino-Library: Bezugsquelle + `P<port>_IO<n>`-Pinschema beim
-  Hardware-Tag mit dem Board in der Hand verifizieren (Design-Spec §1/Offene-Punkte).
+- Board: ESP32-S3, native USB-CDC → shows up as `/dev/cu.usbmodem*` (needs a data cable; a
+  charge-only cable shows no port). Flash 4 MB.
+- Board support (pin macros `P<port>_IO<n>`) is upstream in `espressif/arduino-esp32`
+  (variants *Axiometa GENESIS One* / *Genesis Mini*). PlatformIO may lag the core version —
+  if the variant is missing, either use a platform fork tracking arduino-esp32 3.x or map the
+  `P*_IO*` GPIOs explicitly from the variant's `pins_arduino.h`.
+- **Always back up the current firmware before the first flash** (`esptool read_flash 0x0
+  0x400000 …`) and keep it in `archive/` (local only). The factory demo is already there.
 
 ## Git
 
-Solo-Maintainer, PR-basiert (Branch Protection: 0 required Reviews, enforce_admins=false).
-Commits englischer `type(scope): …`-Header. Nach neuen Repos org-index aktualisieren.
+Solo maintainer, PR-based (branch protection: 0 required reviews, enforce_admins=false).
+English `type(scope): …` commit headers. Update the org index after creating new repos.

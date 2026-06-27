@@ -14,15 +14,15 @@ ViewState computeView(const ListPayload& last, bool newEvent, const NewPayload& 
       v.lines.push_back(line);
     }
   }
-  // LED: Alarme vorhanden → schnell blinken (Aufmerksamkeit); keine → aus.
-  // (Solid/acked unterscheidet der Signaltower aus dem ioBroker-state; die list trägt
-  //  kein acked-Feld — falls der Knopf das später spiegeln soll, Contract erweitern.)
+  // LED: alarms present -> blink fast (attention); none -> off.
+  // (Solid/acked is what the signal tower shows from the ioBroker state; the list carries
+  //  no acked field — if the button should mirror that later, extend the contract.)
   v.led = (v.count > 0) ? LedMode::BLINK_FAST : LedMode::OFF;
 
-  // Beep nur bei frischem new-Event mit count_new > 0 (Anti-Spam: 1 Beep pro Burst).
+  // Beep only on a fresh new event with count_new > 0 (anti-spam: 1 beep per burst).
   v.beep = newEvent && newP.valid && newP.count_new > 0;
 
-  // Verbindungsstatus aus dem heartbeat.
+  // Connection status from the heartbeat.
   if (heartbeatStale) {
     v.conn = Conn::IOBROKER_DOWN;
     v.statusText = "ioBroker?";
