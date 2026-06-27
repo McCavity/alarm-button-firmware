@@ -45,8 +45,9 @@ void AxiometaHAL::tick() {
   bool b = (digitalRead(PIN_ENC_B) == LOW);
   navAccum_ += quad_.update(a, b);
 
-  // Encoder push: debounce, then classify short/long.
-  bool pushRaw = (digitalRead(PIN_ENC_PUSH) == LOW);
+  // Encoder push: ACTIVE-HIGH (idle LOW, pressed HIGH — confirmed bring-up 2026-06-27),
+  // unlike the active-low ack button. Debounce, then classify short/long.
+  bool pushRaw = (digitalRead(PIN_ENC_PUSH) == HIGH);
   pushDeb_.update(pushRaw, now);
   switch (press_.update(pushDeb_.state(), now)) {
     case PressEvent::SHORT_CLICK: detailEvent_ = true; break;

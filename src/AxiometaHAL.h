@@ -35,7 +35,7 @@ private:
 
   alarmcore::Debouncer         ackDeb_{5};
   alarmcore::Debouncer         pushDeb_{5};
-  alarmcore::QuadratureDecoder quad_{4};
+  alarmcore::QuadratureDecoder quad_{2};   // this encoder yields 2 sub-steps/detent (bench 2026-06-27)
   alarmcore::PressClassifier   press_{1500};
 
   // latched abstract events (consume-on-read)
