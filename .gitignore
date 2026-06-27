@@ -1,0 +1,6 @@
+.pio/
+.vscode/
+.DS_Store
+
+# Vendor-Demo-Firmware-Dump (fremdes Copyright) — nur lokal, nicht veröffentlichen
+archive/*.bin
