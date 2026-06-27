@@ -29,6 +29,7 @@ pio test -e native                    # host-test the core
 pio run -e axiometa-mini              # build firmware
 pio run -e axiometa-mini -t upload    # flash
 pio device monitor -e axiometa-mini   # serial console (115200)
+pio run -e bringup -t upload          # hardware self-test probe (tools/hw-bringup/, not the firmware)
 ```
 
 ## Hardware notes
@@ -52,7 +53,7 @@ upstream variant `pins_arduino.h` — verify the exact pin-within-module at brin
 | 1 | 0.96" IPS colour LCD (AX22-0034) | SPI `MOSI=12`/`SCK=14`; CS = `P1_IO0=4`, DC = `P1_IO2=2`, RST = `P1_IO1=3` (✓ bring-up 2026-06-27) | **ST7735** `INITR_MINI160x80`, 80×160 native → **160×80 landscape at `setRotation(3)`**, `invertDisplay(false)`. Adafruit ST7735 lib. Severity colours (design §4) confirmed possible. |
 | 2 | Passive buzzer | signal = `P2_IO1=6` (✓ bring-up 2026-06-27; IO0=7/IO2=5 unused) | `tone()`/`ledc` |
 | 3 | LED push button | button = `P3_IO1=16`, LED = `P3_IO2=15` (✓ bring-up 2026-06-27; IO0=9 unused) | button active-low (INPUT_PULLUP); LED active-high |
-| 4 | Rotary encoder | A/B = `P4_IO1=17`/`P4_IO2=18`, push = `P4_IO0=1` (✓ bring-up 2026-06-27) | A-vs-B order (rotation sign) TBD in software |
+| 4 | Rotary encoder | A/B = `P4_IO1=17`/`P4_IO2=18`, push = `P4_IO0=1` (✓ bring-up 2026-06-27) | CW = nav down; **2 quadrature sub-steps per detent** (`QuadratureDecoder{2}`); **push is active-HIGH** (idle LOW), unlike the active-low ack button |
 
 On-board (no slot): RGB LED `GPIO21` (`neopixelWrite`), user button `GPIO45` — used by the
 phase-0b bring-up smoke test in `src/main.cpp`.

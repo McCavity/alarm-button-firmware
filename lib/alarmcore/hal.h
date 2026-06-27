@@ -27,7 +27,8 @@ public:
   // Outputs — actuators
   virtual void setStatusLed(StatusLedMode mode) = 0;
   virtual void playAlertSound(AlertSound level) = 0;
-  virtual void showAlarmList(const std::vector<std::string>& lines, int selectedIdx) = 0;
+  virtual void showAlarmList(const std::vector<std::string>& lines, int selectedIdx,
+                             const std::string& maxSeverity) = 0;
   virtual void showAlarmDetail(const std::string& text) = 0;
   virtual void showStatus(const std::string& line) = 0;
 };
