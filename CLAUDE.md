@@ -49,10 +49,10 @@ upstream variant `pins_arduino.h` — verify the exact pin-within-module at brin
 
 | Slot | Module | Pins | Notes |
 |---|---|---|---|
-| 1 | 0.96" IPS colour LCD (AX22-0034) | SPI `MOSI=12`, `SCK=14` + `P1_IO0=4`/`IO1=3`/`IO2=2` for CS/DC/RST | **colour TFT** (likely ST7735) → severity colours possible (design §4); verify driver + resolution (80×160 vs 128×128) and which P1 IO is CS/DC/RST at bring-up |
-| 2 | Passive buzzer | `P2_IO0=7` (IO1=6, IO2=5) | `tone()`/`ledc`; confirm which IO carries the signal |
-| 3 | LED push button | `P3_IO0=9`, `IO1=16`, `IO2=15` | button input + LED; confirm which IO is button vs LED |
-| 4 | Rotary encoder | `P4_IO0=1`, `IO1=17`, `IO2=18` | A / B / push |
+| 1 | 0.96" IPS colour LCD (AX22-0034) | SPI `MOSI=12`/`SCK=14`; CS = `P1_IO0=4`, DC = `P1_IO2=2`, RST = `P1_IO1=3` (✓ bring-up 2026-06-27) | **ST7735** `INITR_MINI160x80`, 80×160 native → **160×80 landscape at `setRotation(3)`**, `invertDisplay(false)`. Adafruit ST7735 lib. Severity colours (design §4) confirmed possible. |
+| 2 | Passive buzzer | signal = `P2_IO1=6` (✓ bring-up 2026-06-27; IO0=7/IO2=5 unused) | `tone()`/`ledc` |
+| 3 | LED push button | button = `P3_IO1=16`, LED = `P3_IO2=15` (✓ bring-up 2026-06-27; IO0=9 unused) | button active-low (INPUT_PULLUP); LED active-high |
+| 4 | Rotary encoder | A/B = `P4_IO1=17`/`P4_IO2=18`, push = `P4_IO0=1` (✓ bring-up 2026-06-27) | A-vs-B order (rotation sign) TBD in software |
 
 On-board (no slot): RGB LED `GPIO21` (`neopixelWrite`), user button `GPIO45` — used by the
 phase-0b bring-up smoke test in `src/main.cpp`.
