@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "view.h"
 #include "debounce.h"
+#include "quadrature.h"
 
 using namespace alarmcore;
 
@@ -121,10 +122,28 @@ void test_debounce_rejects_bounce() {
   TEST_ASSERT_FALSE(d.state());
 }
 
+void test_quadrature_cw_one_detent() {
+  QuadratureDecoder q(4);
+  TEST_ASSERT_EQUAL_INT(0, q.update(true, false));   // 00 -> 10
+  TEST_ASSERT_EQUAL_INT(0, q.update(true, true));    // 10 -> 11
+  TEST_ASSERT_EQUAL_INT(0, q.update(false, true));   // 11 -> 01
+  TEST_ASSERT_EQUAL_INT(1, q.update(false, false));  // 01 -> 00  (detent complete)
+}
+
+void test_quadrature_ccw_one_detent() {
+  QuadratureDecoder q(4);
+  TEST_ASSERT_EQUAL_INT(0, q.update(false, true));   // 00 -> 01
+  TEST_ASSERT_EQUAL_INT(0, q.update(true, true));    // 01 -> 11
+  TEST_ASSERT_EQUAL_INT(0, q.update(true, false));   // 11 -> 10
+  TEST_ASSERT_EQUAL_INT(-1, q.update(false, false)); // 10 -> 00  (detent complete)
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_debounce_stabilizes_after_window);
   RUN_TEST(test_debounce_rejects_bounce);
+  RUN_TEST(test_quadrature_cw_one_detent);
+  RUN_TEST(test_quadrature_ccw_one_detent);
   RUN_TEST(test_parseList_ok);
   RUN_TEST(test_parseList_empty);
   RUN_TEST(test_parseList_malformed);
