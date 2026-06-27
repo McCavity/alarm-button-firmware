@@ -49,7 +49,7 @@ upstream variant `pins_arduino.h` — verify the exact pin-within-module at brin
 
 | Slot | Module | Pins | Notes |
 |---|---|---|---|
-| 1 | OLED display | I2C `SDA=10`, `SCL=11` (shared bus) | **mono OLED** (likely SSD1306 128×64), NOT the colour IPS LCD the design assumed → no severity colours; use U8g2/Adafruit_SSD1306, verify I2C address |
+| 1 | 0.96" IPS colour LCD (AX22-0034) | SPI `MOSI=12`, `SCK=14` + `P1_IO0=4`/`IO1=3`/`IO2=2` for CS/DC/RST | **colour TFT** (likely ST7735) → severity colours possible (design §4); verify driver + resolution (80×160 vs 128×128) and which P1 IO is CS/DC/RST at bring-up |
 | 2 | Passive buzzer | `P2_IO0=7` (IO1=6, IO2=5) | `tone()`/`ledc`; confirm which IO carries the signal |
 | 3 | LED push button | `P3_IO0=9`, `IO1=16`, `IO2=15` | button input + LED; confirm which IO is button vs LED |
 | 4 | Rotary encoder | `P4_IO0=1`, `IO1=17`, `IO2=18` | A / B / push |
@@ -57,8 +57,9 @@ upstream variant `pins_arduino.h` — verify the exact pin-within-module at brin
 On-board (no slot): RGB LED `GPIO21` (`neopixelWrite`), user button `GPIO45` — used by the
 phase-0b bring-up smoke test in `src/main.cpp`.
 
-This deviates from `design-2026-05-16-mini.md` (vault), which assumed display=slot 4,
-button=slot 1, encoder=slot 2 + a colour IPS LCD. The HAL follows the **real** wiring above.
+This deviates from `design-2026-05-16-mini.md` (vault) only in **slot positions** (it assumed
+display=slot 4, button=slot 1, encoder=slot 2); the display IS the colour IPS LCD as designed.
+The HAL follows the **real** wiring above.
 
 ## Git
 
