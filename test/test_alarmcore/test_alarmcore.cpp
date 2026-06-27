@@ -3,6 +3,7 @@
 #include "view.h"
 #include "debounce.h"
 #include "quadrature.h"
+#include "pressclassifier.h"
 
 using namespace alarmcore;
 
@@ -138,12 +139,37 @@ void test_quadrature_ccw_one_detent() {
   TEST_ASSERT_EQUAL_INT(-1, q.update(false, false)); // 10 -> 00  (detent complete)
 }
 
+void test_press_short_click_on_release() {
+  PressClassifier p(1500);
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(true, 0));    // press
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(true, 100));  // held briefly
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::SHORT_CLICK, (int)p.update(false, 120)); // release
+}
+
+void test_press_long_press_fires_once() {
+  PressClassifier p(1500);
+  p.update(true, 0);                                                       // press
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(true, 1499));
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::LONG_PRESS, (int)p.update(true, 1500));
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(true, 1800)); // still held
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(false, 1900));// release: no short
+}
+
+void test_press_idle_is_none() {
+  PressClassifier p(1500);
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(false, 0));
+  TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(false, 5000));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_debounce_stabilizes_after_window);
   RUN_TEST(test_debounce_rejects_bounce);
   RUN_TEST(test_quadrature_cw_one_detent);
   RUN_TEST(test_quadrature_ccw_one_detent);
+  RUN_TEST(test_press_short_click_on_release);
+  RUN_TEST(test_press_long_press_fires_once);
+  RUN_TEST(test_press_idle_is_none);
   RUN_TEST(test_parseList_ok);
   RUN_TEST(test_parseList_empty);
   RUN_TEST(test_parseList_malformed);
