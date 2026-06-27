@@ -4,6 +4,7 @@
 #include "debounce.h"
 #include "quadrature.h"
 #include "pressclassifier.h"
+#include "appcore.h"
 
 using namespace alarmcore;
 
@@ -161,6 +162,85 @@ void test_press_idle_is_none() {
   TEST_ASSERT_EQUAL_INT((int)PressEvent::NONE, (int)p.update(false, 5000));
 }
 
+static ListPayload makeList(int n) {
+  ListPayload p; p.valid = true; p.count = n;
+  p.max_severity = n > 0 ? "critical" : "";
+  for (int i = 0; i < n; i++) {
+    Alarm a; a.id = "id" + std::to_string(i); a.host = "host" + std::to_string(i);
+    a.name = "name" + std::to_string(i); a.severity = "warning";
+    a.summary = "summary" + std::to_string(i); a.since = "2026-06-27T10:00:00Z";
+    p.alarms.push_back(a);
+  }
+  return p;
+}
+
+void test_appcore_selection_clamps() {
+  AppCore app; app.setList(makeList(3));
+  app.nav(+5);
+  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);
+  app.nav(-10);
+  TEST_ASSERT_EQUAL_INT(0, app.render().selectedIdx);
+}
+
+void test_appcore_detail_toggle() {
+  AppCore app; app.setList(makeList(3)); app.nav(+1);
+  app.toggleDetail();
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+  TEST_ASSERT_TRUE(m.detailText.find("host1") != std::string::npos);
+  app.toggleDetail();
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
+}
+
+void test_appcore_detail_ignored_when_empty() {
+  AppCore app; app.setList(makeList(0));
+  app.toggleDetail();
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
+}
+
+void test_appcore_mute_gates_beep() {
+  AppCore muted; muted.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  muted.toggleMute();
+  muted.onNew(n);
+  TEST_ASSERT_FALSE(muted.render().beep);
+
+  AppCore loud; loud.setList(makeList(2));
+  loud.onNew(n);
+  TEST_ASSERT_TRUE(loud.render().beep);
+}
+
+void test_appcore_beep_is_one_shot() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  TEST_ASSERT_TRUE(app.render().beep);    // first render consumes it
+  TEST_ASSERT_FALSE(app.render().beep);   // subsequent render: no repeat
+}
+
+void test_appcore_ack_request_is_one_shot() {
+  AppCore app;
+  app.acknowledge();
+  TEST_ASSERT_TRUE(app.takeAckRequest());
+  TEST_ASSERT_FALSE(app.takeAckRequest());
+}
+
+void test_appcore_new_list_reclamps_selection() {
+  AppCore app; app.setList(makeList(3)); app.nav(+2);
+  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);
+  app.setList(makeList(1));
+  TEST_ASSERT_EQUAL_INT(0, app.render().selectedIdx);
+}
+
+void test_appcore_conn_down_shows_status() {
+  AppCore app; app.setList(makeList(2));
+  Heartbeat hb;
+  app.onHeartbeat(hb, true);   // stale -> ioBroker down
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::STATUS, (int)m.screen);
+  TEST_ASSERT_EQUAL_STRING("ioBroker?", m.statusText.c_str());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_debounce_stabilizes_after_window);
@@ -170,6 +250,14 @@ int main(int, char**) {
   RUN_TEST(test_press_short_click_on_release);
   RUN_TEST(test_press_long_press_fires_once);
   RUN_TEST(test_press_idle_is_none);
+  RUN_TEST(test_appcore_selection_clamps);
+  RUN_TEST(test_appcore_detail_toggle);
+  RUN_TEST(test_appcore_detail_ignored_when_empty);
+  RUN_TEST(test_appcore_mute_gates_beep);
+  RUN_TEST(test_appcore_beep_is_one_shot);
+  RUN_TEST(test_appcore_ack_request_is_one_shot);
+  RUN_TEST(test_appcore_new_list_reclamps_selection);
+  RUN_TEST(test_appcore_conn_down_shows_status);
   RUN_TEST(test_parseList_ok);
   RUN_TEST(test_parseList_empty);
   RUN_TEST(test_parseList_malformed);
