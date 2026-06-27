@@ -1,6 +1,7 @@
 #include <unity.h>
 #include "parser.h"
 #include "view.h"
+#include "debounce.h"
 
 using namespace alarmcore;
 
@@ -104,8 +105,26 @@ void test_view_grafana_down() {
   TEST_ASSERT_EQUAL_STRING("Grafana?", v.statusText.c_str());
 }
 
+void test_debounce_stabilizes_after_window() {
+  Debouncer d(5);
+  TEST_ASSERT_FALSE(d.update(true, 0));    // raw high, but not yet stable
+  TEST_ASSERT_FALSE(d.update(true, 4));    // 4 ms < 5 ms window
+  TEST_ASSERT_TRUE(d.update(true, 5));     // 5 ms reached -> flips
+  TEST_ASSERT_TRUE(d.state());
+}
+
+void test_debounce_rejects_bounce() {
+  Debouncer d(5);
+  d.update(true, 0);
+  TEST_ASSERT_FALSE(d.update(false, 2));   // bounced back before window
+  TEST_ASSERT_FALSE(d.update(false, 6));   // stable low == initial, no flip
+  TEST_ASSERT_FALSE(d.state());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
+  RUN_TEST(test_debounce_stabilizes_after_window);
+  RUN_TEST(test_debounce_rejects_bounce);
   RUN_TEST(test_parseList_ok);
   RUN_TEST(test_parseList_empty);
   RUN_TEST(test_parseList_malformed);
