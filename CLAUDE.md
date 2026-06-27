@@ -42,6 +42,24 @@ pio device monitor -e axiometa-mini   # serial console (115200)
 - **Always back up the current firmware before the first flash** (`esptool read_flash 0x0
   0x400000 …`) and keep it in `archive/` (local only). The factory demo is already there.
 
+## Module layout (confirmed 2026-06-27)
+
+As wired (only change vs. the kit default: temp sensor → LED push button). GPIOs from the
+upstream variant `pins_arduino.h` — verify the exact pin-within-module at bring-up.
+
+| Slot | Module | Pins | Notes |
+|---|---|---|---|
+| 1 | OLED display | I2C `SDA=10`, `SCL=11` (shared bus) | **mono OLED** (likely SSD1306 128×64), NOT the colour IPS LCD the design assumed → no severity colours; use U8g2/Adafruit_SSD1306, verify I2C address |
+| 2 | Passive buzzer | `P2_IO0=7` (IO1=6, IO2=5) | `tone()`/`ledc`; confirm which IO carries the signal |
+| 3 | LED push button | `P3_IO0=9`, `IO1=16`, `IO2=15` | button input + LED; confirm which IO is button vs LED |
+| 4 | Rotary encoder | `P4_IO0=1`, `IO1=17`, `IO2=18` | A / B / push |
+
+On-board (no slot): RGB LED `GPIO21` (`neopixelWrite`), user button `GPIO45` — used by the
+phase-0b bring-up smoke test in `src/main.cpp`.
+
+This deviates from `design-2026-05-16-mini.md` (vault), which assumed display=slot 4,
+button=slot 1, encoder=slot 2 + a colour IPS LCD. The HAL follows the **real** wiring above.
+
 ## Git
 
 Solo maintainer, PR-based (branch protection: 0 required reviews, enforce_admins=false).
