@@ -6,7 +6,7 @@ namespace alarmcore {
 ListPayload parseList(const char* json) {
   ListPayload out;
   JsonDocument doc;
-  if (deserializeJson(doc, json)) return out;       // valid bleibt false
+  if (deserializeJson(doc, json)) return out;       // valid stays false
   if (!doc["alarms"].is<JsonArrayConst>()) return out;
   out.schema_version = doc["schema_version"] | 0;
   out.device_id = std::string(doc["device_id"] | "");
@@ -15,9 +15,9 @@ ListPayload parseList(const char* json) {
   for (JsonObjectConst a : doc["alarms"].as<JsonArrayConst>()) {
     Alarm al;
     al.id = std::string(a["id"] | "");
-    al.host = std::string(a["host"] | "unknown");      // fail-safe
+    al.host = std::string(a["host"] | "unknown");         // fail safe
     al.name = std::string(a["name"] | "");
-    al.severity = std::string(a["severity"] | "warning"); // fail-safe: nie stumm
+    al.severity = std::string(a["severity"] | "warning"); // fail safe: never silent
     al.summary = std::string(a["summary"] | "");
     al.since = std::string(a["since"] | "");
     out.alarms.push_back(al);

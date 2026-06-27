@@ -1,8 +1,8 @@
 #pragma once
 #include "contract.h"
 
-// Reine JSON→Struct-Parser für die drei Downstream-Topics. Defensiv:
-// fehlende/ungültige Felder fail-safe (severity → "warning"), Parse-Fehler → valid=false.
+// Pure JSON->struct parsers for the three downstream topics. Defensive:
+// missing/invalid fields fail safe (severity -> "warning"), parse error -> valid=false.
 namespace alarmcore {
 
 ListPayload parseList(const char* json);
