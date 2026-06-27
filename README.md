@@ -43,6 +43,7 @@ available with the standard ESP32 Arduino core — no vendor library required.
 pio test -e native            # host-test the core (no board needed)
 pio run -e axiometa-mini      # build firmware for the ESP32-S3
 pio run -e axiometa-mini -t upload   # flash (board on a USB data cable)
+pio run -e bringup -t upload  # hardware self-test probe (verify module wiring — see tools/hw-bringup/)
 ```
 
 ## Restoring the demo firmware

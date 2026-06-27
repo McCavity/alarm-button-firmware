@@ -3,14 +3,18 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 
-// Phase 0c — interactive module bring-up probe (digital modules: slots 2/3/4 + LCD slot 1).
-// Goal: confirm the exact pin-within-module assignments CLAUDE.md flags as unverified —
+// Standalone hardware self-test probe (NOT the firmware). Build/flash with its own env:
+//   pio run -e bringup -t upload   &&   pio device monitor -e bringup   ('h' for help)
+// Lives outside src/ so it never collides with the real firmware (src/main.cpp).
+//
+// Interactive module bring-up (digital modules: slots 2/3/4 + LCD slot 1). Confirms the
+// exact pin-within-module assignments for a Genesis Mini:
 //   slot 3 (LED push button): which P3_IO is the button input vs the LED output
 //   slot 4 (rotary encoder): which P4_IO is A / B / push
 //   slot 2 (passive buzzer): which P2_IO carries the signal
-// The LCD (slot 1) is a separate probe (needs a TFT library + driver/resolution check).
+//   slot 1 (IPS LCD): which P1_IO is CS/DC/RST + ST7735 driver tab / rotation / inversion
 //
-// Flash once, drive over the serial console (115200). Two things happen at once:
+// Drive over the serial console (115200). Two things happen at once:
 //   * INPUT SCAN: all 6 button/encoder candidate pins are INPUT_PULLUP and printed live
 //     whenever any of them changes — rotate the encoder / press the button to see which
 //     GPIOs move (those are the INPUTS; the ones that never move are LED outputs).

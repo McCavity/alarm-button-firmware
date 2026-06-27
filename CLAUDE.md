@@ -29,6 +29,7 @@ pio test -e native                    # host-test the core
 pio run -e axiometa-mini              # build firmware
 pio run -e axiometa-mini -t upload    # flash
 pio device monitor -e axiometa-mini   # serial console (115200)
+pio run -e bringup -t upload          # hardware self-test probe (tools/hw-bringup/, not the firmware)
 ```
 
 ## Hardware notes
