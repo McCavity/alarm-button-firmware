@@ -59,10 +59,13 @@ esptool --port /dev/cu.usbmodem* write_flash 0x0 archive/demo-firmware-full-4MB-
 
 - **Foundation ✓** (2026-06-27): host-testable core (parser + view, 13 tests green),
   project skeleton, demo firmware archived.
-- **Phase 0b (next, hardware session):** WiFi + MQTT client (subscribe
-  `alarmbutton/office/{list,new,heartbeat}`) + `AxiometaHAL` (LED / buzzer / encoder / LCD) +
-  render loop + ack publish → Grafana silence. Needs the hardware rebuild
-  (temp sensor → push button) which is now done.
+- **Phase 0b ✓** (2026-06-27): on-board LED + button bring-up on hardware.
+- **Phase 0c ✓** (2026-06-27): all four module pin maps confirmed on hardware (`bringup`
+  probe); `AxiometaHAL` (LCD / LED / buzzer / encoder) + host-tested core UI state machine
+  (`AppCore`: selection, detail toggle, mute; 28 native tests green); canned-data demo
+  verified end-to-end on the board (list / nav / detail / ack / beep / mute / status LED).
+- **Phase 1 (next):** WiFi + MQTT client (subscribe `alarmbutton/<device>/{list,new,heartbeat}`)
+  feeding `AppCore` instead of the canned list + ack publish → ioBroker → Grafana silence.
 - **Provisioning (roadmap):** Tasmota-style first-time setup without hard-coded secrets —
   an unconfigured board opens its own Wi-Fi (captive-portal AP) with a small web UI to set
   Wi-Fi + Wi-Fi security + MQTT credentials, password-protect admin access, optionally
