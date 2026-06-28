@@ -64,8 +64,14 @@ esptool --port /dev/cu.usbmodem* write_flash 0x0 archive/demo-firmware-full-4MB-
   probe); `AxiometaHAL` (LCD / LED / buzzer / encoder) + host-tested core UI state machine
   (`AppCore`: selection, detail toggle, mute; 28 native tests green); canned-data demo
   verified end-to-end on the board (list / nav / detail / ack / beep / mute / status LED).
-- **Phase 1 (next):** WiFi + MQTT client (subscribe `alarmbutton/<device>/{list,new,heartbeat}`)
-  feeding `AppCore` instead of the canned list + ack publish → ioBroker → Grafana silence.
+- **Phase 1a ✓** (2026-06-28): WiFi + MQTT client (`MqttLink`, arduino-mqtt) subscribing
+  `alarmbutton/office/{list,new,heartbeat}` → `parse*` → `AppCore` (canned list replaced),
+  non-blocking reconnect + SNTP, `ack_all` publish on button press. HIL-verified end-to-end
+  against the live ioBroker: connect (unique client id), retained list renders, `new`→beep,
+  heartbeat-stale→"ioBroker?" (recovers), ack→signal tower solid. 28 native tests still green.
+- **Phase 1b (next):** triage queue (unacked → detail, `ack_one`, list reconciliation) +
+  contract `acked` flag → button LED mirrors the signal tower's tri-state (unacked blink /
+  all acked solid / empty off); sustained alert sound (≤30 s or until ack).
 - **Provisioning (roadmap):** Tasmota-style first-time setup without hard-coded secrets —
   an unconfigured board opens its own Wi-Fi (captive-portal AP) with a small web UI to set
   Wi-Fi + Wi-Fi security + MQTT credentials, password-protect admin access, optionally
