@@ -36,6 +36,7 @@ void loop() {
   hal.tick();
 
   if (hal.acknowledgePressed())  { app.acknowledge();  Serial.println("ACK"); }
+  if (app.takeAckRequest()) mqtt.publishAck("ack_all");
   int d = hal.navDelta();        if (d) app.nav(d);
   if (hal.detailTogglePressed()) { app.toggleDetail(); Serial.println("DETAIL toggle"); }
   if (hal.muteTogglePressed())   { app.toggleMute();   Serial.printf("MUTE=%d\n", app.muted()); }

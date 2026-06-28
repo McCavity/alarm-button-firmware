@@ -81,6 +81,28 @@ void MqttLink::handleMessage(String& topic, String& payload) {
   }
 }
 
-// Filled in Task 5:
-bool MqttLink::isoTimeUtc(char* out, size_t n) { (void)out; (void)n; return false; }
-void MqttLink::publishAck(const char* action) { (void)action; }
+bool MqttLink::isoTimeUtc(char* out, size_t n) {
+  time_t now = time(nullptr);
+  if (now < 1700000000) return false;            // SNTP not synced yet (before 2023-11)
+  struct tm tm_utc;
+  gmtime_r(&now, &tm_utc);
+  strftime(out, n, "%Y-%m-%dT%H:%M:%SZ", &tm_utc);
+  return true;
+}
+
+void MqttLink::publishAck(const char* action) {
+  char ts[32];
+  char payload[160];
+  if (isoTimeUtc(ts, sizeof(ts))) {
+    snprintf(payload, sizeof(payload),
+      "{\"schema_version\":1,\"device_id\":\"%s\",\"ts\":\"%s\",\"action\":\"%s\"}",
+      DEVICE_ID, ts, action);
+  } else {
+    // SNTP not ready: omit ts rather than send a wrong one (ioBroker stamps on receipt).
+    snprintf(payload, sizeof(payload),
+      "{\"schema_version\":1,\"device_id\":\"%s\",\"action\":\"%s\"}",
+      DEVICE_ID, action);
+  }
+  client_.publish("alarmbutton/" DEVICE_ID "/ack", payload, false, 1);  // no retain, QoS 1
+  Serial.printf("[mqtt] ack -> %s\n", payload);
+}
