@@ -40,6 +40,7 @@ private:
   String clientId_;
   unsigned long lastReconnectMs_ = 0;
   unsigned long lastHeartbeatMs_ = 0;
+  bool wifiWasConnected_ = false;
 
   ListCb listCb_;
   NewCb  newCb_;

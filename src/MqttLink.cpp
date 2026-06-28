@@ -25,7 +25,11 @@ void MqttLink::begin() {
 }
 
 void MqttLink::ensureWifi() {
-  if (WiFi.status() == WL_CONNECTED) return;
+  bool nowConnected = (WiFi.status() == WL_CONNECTED);
+  // On a disconnected->connected transition, clear the MQTT backoff so the
+  // next ensureMqtt() reconnects immediately instead of waiting out a stale guard.
+  if (nowConnected && !wifiWasConnected_) lastReconnectMs_ = 0;
+  wifiWasConnected_ = nowConnected;
   // WiFi.begin already called in begin(); the ESP auto-retries. Nothing to block on.
 }
 
