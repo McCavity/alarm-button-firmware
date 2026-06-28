@@ -46,6 +46,13 @@ void loop() {
     if (c == 'r') { ListPayload empty; empty.valid = true; empty.count = 0; empty.max_severity = ""; app.setList(empty); }
   }
 
+  // Stale = MQTT down, OR heartbeats were flowing and then stopped (>45 s, contract rule).
+  // Before the first heartbeat (lastHeartbeatMs()==0) while connected we are NOT stale —
+  // a freshly connected button shows the retained list, not "ioBroker?".
+  bool stale = !mqtt.isConnected() ||
+               (mqtt.lastHeartbeatMs() != 0 && millis() - mqtt.lastHeartbeatMs() > 45000UL);
+  app.onHeartbeat(lastHb, stale);
+
   RenderModel m = app.render();
   hal.setStatusLed(toStatusLed(m.led));
   if (m.beep) hal.playAlertSound(AlertSound::SHORT_BEEP);
