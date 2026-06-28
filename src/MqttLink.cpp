@@ -64,8 +64,22 @@ void MqttLink::onMqttMessage(String& topic, String& payload) {
   if (instance_) instance_->handleMessage(topic, payload);
 }
 
-// Filled in Task 3:
-void MqttLink::handleMessage(String& topic, String& payload) { (void)topic; (void)payload; }
+void MqttLink::handleMessage(String& topic, String& payload) {
+  const char* json = payload.c_str();
+  if (topic.endsWith("/list")) {
+    alarmcore::ListPayload p = alarmcore::parseList(json);
+    if (p.valid && listCb_) listCb_(p);             // invalid -> drop, keep last (defensive)
+  } else if (topic.endsWith("/new")) {
+    alarmcore::NewPayload n = alarmcore::parseNew(json);
+    if (n.valid && newCb_) newCb_(n);
+  } else if (topic.endsWith("/heartbeat")) {
+    alarmcore::Heartbeat hb = alarmcore::parseHeartbeat(json);
+    if (hb.valid) {
+      lastHeartbeatMs_ = millis();
+      if (hbCb_) hbCb_(hb);
+    }
+  }
+}
 
 // Filled in Task 5:
 bool MqttLink::isoTimeUtc(char* out, size_t n) { (void)out; (void)n; return false; }
