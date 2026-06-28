@@ -2,6 +2,7 @@
 #include "AxiometaHAL.h"
 #include "appcore.h"
 #include "contract.h"
+#include "MqttLink.h"
 
 using namespace alarmcore;
 
@@ -9,6 +10,7 @@ using namespace alarmcore;
 // No MQTT yet. Serial keys: 'n' inject a "new" event (one beep), 'r' restore the demo list.
 static AxiometaHAL hal;
 static AppCore app;
+static MqttLink mqtt;
 
 static StatusLedMode toStatusLed(LedMode m) {
   switch (m) {
@@ -41,12 +43,14 @@ void setup() {
   delay(300);
   Serial.println("alarm-button phase 0c demo — 'n'=new beep, 'r'=restore list");
   hal.init();
+  mqtt.begin();
   app.setList(demoList());
   Heartbeat hb; hb.valid = true; hb.grafana_ok = true; hb.poll_age_s = 2;
   app.onHeartbeat(hb, false);
 }
 
 void loop() {
+  mqtt.loop();
   hal.tick();
 
   if (hal.acknowledgePressed())  { app.acknowledge();  Serial.println("ACK"); }
