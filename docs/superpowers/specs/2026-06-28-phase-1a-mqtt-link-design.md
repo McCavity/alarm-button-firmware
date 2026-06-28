@@ -155,6 +155,12 @@ Nicht Teil dieser Umsetzung. Festgehalten, weil die Brainstorm-Diskussion die Ri
 - **Gesten-Mapping:** kurz = `ack_one`; long = `ack_all` (Massen-Event); Verortung von
   `ack_all` (LED-Button-Long vs. Encoder-Long) und mute-Umzug noch offen.
 - **ack_one-Payload:** `action:"ack_one"` + `"id":"<fingerprint>"`.
+- **LED = getreuer Mini-Signaltower (Tri-State).** Die Button-LED spiegelt die exakte
+  Tri-State-Logik des Signaltowers (ioBroker `computeSignaltower` macht es vor):
+  **irgendein unacked → `fast_blink` · alle acked → `on` (solid) · leer → `off`**. Das ist die
+  präzise Form (nicht nur „solid für gesehen") — ersetzt die heutige Phase-1a-Logik
+  [view.cpp:20](../../../lib/alarmcore/view.cpp:20) (`count>0 → BLINK_FAST`), sobald der
+  `acked`-Flag im Core ankommt.
 
 ### 1b-Backlog
 - **Top-N-Cap nach Severity** auf der ioBroker-Listenseite (gegen das echte 200-Alarme-Storm-
