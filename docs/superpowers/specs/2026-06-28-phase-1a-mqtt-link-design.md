@@ -119,14 +119,14 @@ Kein neuer Core-Test (reine Glue). Verifikation gegen den live ioBroker via Seri
    Signaltower `fast_blink`→`on` (solid), Rundumleuchte aus, Alarm **bleibt in der Liste**.
 5. Stale-Test: ioBroker/Heartbeat stoppen → nach 45 s "ioBroker?".
 
-## Akzeptanzkriterien
-- [ ] Board verbindet WiFi + MQTT (eindeutige Client-ID, kein `btn_*`-Konflikt), reconnectet non-blocking.
-- [ ] Retained `list` rendert beim Boot; `new` löst genau einen Beep aus (sofern nicht muted).
-- [ ] Heartbeat-Ausfall > 45 s → "ioBroker?"; Recovery → zurück zur Liste.
-- [ ] Ack-Druck publisht gültiges `ack_all`-JSON; ioBroker setzt `acked`-Flag → Signaltower
+## Akzeptanzkriterien (alle HIL-verifiziert 2026-06-28, Board `alarmbutton-office-13CFD0`)
+- [x] Board verbindet WiFi + MQTT (eindeutige Client-ID, kein `btn_*`-Konflikt), reconnectet non-blocking.
+- [x] Retained `list` rendert beim Boot; `new` löst genau einen Beep aus (sofern nicht muted).
+- [x] Heartbeat-Ausfall > 45 s → "ioBroker?"; Recovery → zurück zur Liste. (35 s ab Stopp = ~45 s ab letztem Heartbeat ✓)
+- [x] Ack-Druck publisht gültiges `ack_all`-JSON; ioBroker setzt `acked`-Flag → Signaltower
       `fast_blink`→solid, Rundumleuchte aus, Alarm bleibt in der Liste.
-- [ ] `pio test -e native` weiter 28/28 grün (Core unberührt).
-- [ ] Secrets nicht im Repo; `secrets.h.example` als Vorlage vorhanden.
+- [x] `pio test -e native` weiter 28/28 grün (Core unberührt).
+- [x] Secrets nicht im Repo; `secrets.h.example` als Vorlage vorhanden.
 
 ## Offene Cross-Repo-Abhängigkeiten (ioBroker-Seite)
 
@@ -165,4 +165,7 @@ Nicht Teil dieser Umsetzung. Festgehalten, weil die Brainstorm-Diskussion die Ri
 ### 1b-Backlog
 - **Top-N-Cap nach Severity** auf der ioBroker-Listenseite (gegen das echte 200-Alarme-Storm-
   Szenario — sprengt sonst Buffer + Button + Mensch).
+- **Anhaltender Alarm-Sound** statt Einzel-Beep: bei `new` für **≤30 s** piepen, **endet sobald
+  geACKed** (was früher kommt). Getimter Buzzer-Zustand → gehört in den Core (host-testbar, TDD):
+  Start bei `onNew`, Stop bei Ack oder nach 30 s. (HIL-Wunsch 2026-06-28; heute ist es 1 Beep/Burst.)
 - NVS-Persistenz (mute / last list über Reboot) — Phase 2.
