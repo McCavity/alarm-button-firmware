@@ -225,10 +225,12 @@ void test_appcore_triage_all_acked_shows_list() {
 }
 
 void test_appcore_triage_focus_held_across_republish() {
-  AppCore app; app.setList(makeList(3)); app.nav(+2);   // focus id2
-  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);
-  app.setList(makeList(3));                              // same set republished
-  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);   // still id2, no jump
+  AppCore app; app.setList(makeList(3)); app.nav(+2);
+  app.toggleDetail();                                   // manual peek to LIST
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
+  app.setList(makeList(3));                             // same set republished
+  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);   // still id2
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen); // detail NOT yanked
 }
 
 void test_appcore_triage_focus_lost_jumps_to_first_unacked() {
