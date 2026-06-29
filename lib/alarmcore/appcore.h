@@ -1,6 +1,7 @@
 #pragma once
 #include "contract.h"
 #include "view.h"
+#include "hal.h"
 #include <string>
 #include <vector>
 
@@ -13,7 +14,7 @@ enum class Screen { LIST, DETAIL, STATUS };
 
 struct RenderModel {
   LedMode led = LedMode::OFF;
-  bool beep = false;                 // one-shot; already gated by mute
+  AlertSound sound = AlertSound::OFF;   // OFF | URGENT (sustained, gated by mute)
   Screen screen = Screen::LIST;
   std::vector<std::string> lines;    // LIST: "host name" per alarm
   int selectedIdx = 0;               // LIST
@@ -39,7 +40,7 @@ public:
   bool takeAckOne(std::string& id);            // true once after a press; fills focused fingerprint
   bool muted() const { return muted_; }
 
-  RenderModel render();                         // consumes the one-shot new event
+  RenderModel render(uint32_t nowMs = 0);       // consumes the one-shot new event; nowMs drives the alert window
 
 private:
   void clampSelection();
@@ -56,6 +57,7 @@ private:
   int         selectedIdx_ = 0;
   bool        detail_ = false;
   bool        muted_ = false;
+  uint32_t    urgentUntilMs_ = 0;          // urgent-sound window deadline (0 = not sounding)
   bool        ackPending_ = false;
   std::string ackId_;
 };

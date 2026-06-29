@@ -13,7 +13,6 @@ enum class Conn { OK, GRAFANA_DOWN, IOBROKER_DOWN };
 
 struct ViewState {
   LedMode led = LedMode::OFF;
-  bool beep = false;                 // one-shot beep this cycle (from a new event)
   int count = 0;
   std::string maxSeverity;
   std::vector<std::string> lines;    // "host name" per alarm
@@ -21,9 +20,8 @@ struct ViewState {
   std::string statusText;            // "OK" | "Grafana?" | "ioBroker?"
 };
 
-// newEvent=true + valid newP -> beep. heartbeatStale=true -> ioBroker connection dead
-// (no heartbeat past the stale threshold; cf. contract heartbeat: >45 s ~ 3 missed).
-ViewState computeView(const ListPayload& last, bool newEvent, const NewPayload& newP,
-                      const Heartbeat& hb, bool heartbeatStale);
+// heartbeatStale=true -> ioBroker connection dead (no heartbeat past the stale threshold;
+// cf. contract heartbeat: >45 s ~ 3 missed). Sound lives in AppCore (it needs a clock).
+ViewState computeView(const ListPayload& last, const Heartbeat& hb, bool heartbeatStale);
 
 } // namespace alarmcore

@@ -87,9 +87,8 @@ void test_parseNew_ok() {
 void test_view_alarms_blink_ok() {
   ListPayload p = parseList(LIST_JSON);
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
-  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
-  TEST_ASSERT_FALSE(v.beep);
   TEST_ASSERT_EQUAL_INT(2, (int)v.lines.size());
   TEST_ASSERT_EQUAL_STRING("host01 USV auf Batterie", v.lines[0].c_str());
   TEST_ASSERT_EQUAL_STRING("OK", v.statusText.c_str());
@@ -97,7 +96,7 @@ void test_view_alarms_blink_ok() {
 
 void test_view_empty_led_off() {
   ListPayload p = parseList(R"({"count":0,"alarms":[]})");
-  ViewState v = computeView(p, false, NewPayload{}, Heartbeat{}, false);
+  ViewState v = computeView(p, Heartbeat{}, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::OFF, (int)v.led);
 }
 
@@ -105,7 +104,7 @@ void test_view_all_acked_solid() {
   ListPayload p = parseList(LIST_JSON);
   for (auto& a : p.alarms) a.acked = true;
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
-  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)v.led);
 }
 
@@ -113,20 +112,12 @@ void test_view_partial_acked_blinks() {
   ListPayload p = parseList(LIST_JSON);
   p.alarms[0].acked = true;        // one acked, one still unacked
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
-  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
 }
 
-void test_view_new_triggers_beep() {
-  ListPayload p = parseList(LIST_JSON);
-  NewPayload n = parseNew(R"({"count_new":1,"max_severity":"warning"})");
-  Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
-  ViewState v = computeView(p, true, n, h, false);
-  TEST_ASSERT_TRUE(v.beep);
-}
-
 void test_view_stale_iobroker_down() {
-  ViewState v = computeView(ListPayload{}, false, NewPayload{}, Heartbeat{}, true);
+  ViewState v = computeView(ListPayload{}, Heartbeat{}, true);
   TEST_ASSERT_EQUAL_INT((int)Conn::IOBROKER_DOWN, (int)v.conn);
   TEST_ASSERT_EQUAL_STRING("ioBroker?", v.statusText.c_str());
 }
@@ -134,7 +125,7 @@ void test_view_stale_iobroker_down() {
 void test_view_grafana_down() {
   ListPayload p = parseList(LIST_JSON);
   Heartbeat h; h.valid = true; h.grafana_ok = false; h.poll_age_s = 5;
-  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)Conn::GRAFANA_DOWN, (int)v.conn);
   TEST_ASSERT_EQUAL_STRING("Grafana?", v.statusText.c_str());
 }
@@ -283,24 +274,45 @@ void test_appcore_detail_ignored_when_empty() {
   TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
 }
 
-void test_appcore_mute_gates_beep() {
-  AppCore muted; muted.setList(makeList(2));
+void test_appcore_mute_gates_sound() {
   NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+
+  AppCore muted; muted.setList(makeList(2));
   muted.toggleMute();
   muted.onNew(n);
-  TEST_ASSERT_FALSE(muted.render().beep);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)muted.render(1000).sound);
 
   AppCore loud; loud.setList(makeList(2));
   loud.onNew(n);
-  TEST_ASSERT_TRUE(loud.render().beep);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)loud.render(1000).sound);
 }
 
-void test_appcore_beep_is_one_shot() {
+void test_appcore_urgent_window_times_out() {
   AppCore app; app.setList(makeList(2));
   NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
   app.onNew(n);
-  TEST_ASSERT_TRUE(app.render().beep);    // first render consumes it
-  TEST_ASSERT_FALSE(app.render().beep);   // subsequent render: no repeat
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(0).sound);      // armed at t=0 (until 30000)
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(29999).sound);  // still within window
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)app.render(30000).sound);     // 30 s elapsed
+}
+
+void test_appcore_urgent_stops_on_ack() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(0).sound);
+  app.acknowledge();
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)app.render(1000).sound);
+}
+
+void test_appcore_urgent_rearms_on_new() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  app.render(0);                     // arm: until 30000
+  app.onNew(n);
+  app.render(20000);                 // re-arm: until 50000
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(40000).sound);  // off without re-arm
 }
 
 void test_appcore_ack_one_captures_focus_id() {
@@ -365,8 +377,10 @@ int main(int, char**) {
   RUN_TEST(test_appcore_clamp_uses_alarm_count_not_field);
   RUN_TEST(test_appcore_detail_toggle);
   RUN_TEST(test_appcore_detail_ignored_when_empty);
-  RUN_TEST(test_appcore_mute_gates_beep);
-  RUN_TEST(test_appcore_beep_is_one_shot);
+  RUN_TEST(test_appcore_mute_gates_sound);
+  RUN_TEST(test_appcore_urgent_window_times_out);
+  RUN_TEST(test_appcore_urgent_stops_on_ack);
+  RUN_TEST(test_appcore_urgent_rearms_on_new);
   RUN_TEST(test_appcore_ack_one_captures_focus_id);
   RUN_TEST(test_appcore_ack_one_optimistic_advance);
   RUN_TEST(test_appcore_ack_one_last_goes_solid_list);
@@ -392,7 +406,6 @@ int main(int, char**) {
   RUN_TEST(test_view_empty_led_off);
   RUN_TEST(test_view_all_acked_solid);
   RUN_TEST(test_view_partial_acked_blinks);
-  RUN_TEST(test_view_new_triggers_beep);
   RUN_TEST(test_view_stale_iobroker_down);
   RUN_TEST(test_view_grafana_down);
   return UNITY_END();

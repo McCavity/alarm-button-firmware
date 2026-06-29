@@ -56,9 +56,9 @@ void loop() {
                (mqtt.lastHeartbeatMs() != 0 && millis() - mqtt.lastHeartbeatMs() > 45000UL);
   app.onHeartbeat(lastHb, stale);
 
-  RenderModel m = app.render();
+  RenderModel m = app.render(millis());
   hal.setStatusLed(toStatusLed(m.led));
-  if (m.beep) hal.playAlertSound(AlertSound::SHORT_BEEP);
+  hal.playAlertSound(m.sound);
   switch (m.screen) {
     case Screen::LIST:   hal.showAlarmList(m.lines, m.selectedIdx, m.maxSeverity); break;
     case Screen::DETAIL: hal.showAlarmDetail(m.detailText);                        break;

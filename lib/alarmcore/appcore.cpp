@@ -55,6 +55,7 @@ void AppCore::acknowledge() {
   if (n == 0 || selectedIdx_ < 0 || selectedIdx_ >= n) return;   // no focus -> no-op
   ackId_ = list_.alarms[selectedIdx_].id;
   ackPending_ = true;
+  urgentUntilMs_ = 0;   // first ack stops the urgent sound
   list_.alarms[selectedIdx_].acked = true;        // optimistic: don't wait for the republish
   // advance to the next unacked alarm, or drop to the list when none remain
   int fu = firstUnacked();
@@ -83,13 +84,17 @@ std::string AppCore::detailText() const {
   return a.host + "\n" + a.name + "\n" + a.summary + "\n" + a.since;
 }
 
-RenderModel AppCore::render() {
-  ViewState v = computeView(list_, newPending_, new_, hb_, stale_);
-  newPending_ = false;   // one-shot beep consumed
+RenderModel AppCore::render(uint32_t nowMs) {
+  ViewState v = computeView(list_, hb_, stale_);
+
+  // A fresh new event arms a 30 s urgent window (re-arm on every new); first ack / mute /
+  // timeout end it. acknowledge() zeroes the deadline.
+  if (newPending_ && new_.valid && new_.count_new > 0) urgentUntilMs_ = nowMs + 30000;
+  newPending_ = false;   // one-shot consumed
 
   RenderModel m;
   m.led = v.led;
-  m.beep = v.beep && !muted_;
+  m.sound = (nowMs < urgentUntilMs_ && !muted_) ? AlertSound::URGENT : AlertSound::OFF;
   m.count = v.count;
   m.maxSeverity = v.maxSeverity;
   m.lines = v.lines;

@@ -2,8 +2,7 @@
 
 namespace alarmcore {
 
-ViewState computeView(const ListPayload& last, bool newEvent, const NewPayload& newP,
-                      const Heartbeat& hb, bool heartbeatStale) {
+ViewState computeView(const ListPayload& last, const Heartbeat& hb, bool heartbeatStale) {
   ViewState v;
   v.count = last.valid ? last.count : 0;
   v.maxSeverity = last.valid ? last.max_severity : "";
@@ -23,9 +22,6 @@ ViewState computeView(const ListPayload& last, bool newEvent, const NewPayload& 
   if (v.count == 0)        v.led = LedMode::OFF;
   else if (anyUnacked)     v.led = LedMode::BLINK_FAST;
   else                     v.led = LedMode::SOLID;
-
-  // Beep only on a fresh new event with count_new > 0 (anti-spam: 1 beep per burst).
-  v.beep = newEvent && newP.valid && newP.count_new > 0;
 
   // Connection status from the heartbeat.
   if (heartbeatStale) {
