@@ -60,6 +60,7 @@ void test_parseList_acked() {
 
 void test_parseList_acked_missing_defaults_false() {
   ListPayload p = parseList(R"({"count":1,"alarms":[{"id":"a","host":"h","severity":"warning"}]})");
+  TEST_ASSERT_TRUE(p.valid);   // guard: a silent parse fail must not masquerade as "acked=false"
   TEST_ASSERT_FALSE(p.alarms[0].acked);
 }
 
@@ -114,6 +115,17 @@ void test_view_partial_acked_blinks() {
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
   ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+}
+
+void test_view_count_nonzero_empty_alarms_off() {
+  // Defensive: a malformed-but-valid payload with count>0 but no alarm objects must
+  // NOT fall through to SOLID ("all acked"). The LED gate keys off the scan domain
+  // (alarms[]), not the loose count field. -> empty alarms means OFF.
+  ListPayload p = parseList(R"({"count":1,"alarms":[]})");
+  TEST_ASSERT_TRUE(p.valid);
+  Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
+  ViewState v = computeView(p, h, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::OFF, (int)v.led);
 }
 
 void test_view_stale_iobroker_down() {
@@ -406,6 +418,7 @@ int main(int, char**) {
   RUN_TEST(test_view_empty_led_off);
   RUN_TEST(test_view_all_acked_solid);
   RUN_TEST(test_view_partial_acked_blinks);
+  RUN_TEST(test_view_count_nonzero_empty_alarms_off);
   RUN_TEST(test_view_stale_iobroker_down);
   RUN_TEST(test_view_grafana_down);
   return UNITY_END();
