@@ -36,7 +36,7 @@ public:
   void toggleMute();
   void acknowledge();
 
-  bool takeAckRequest();                       // true once if an ack is pending, then clears
+  bool takeAckOne(std::string& id);            // true once after a press; fills focused fingerprint
   bool muted() const { return muted_; }
 
   RenderModel render();                         // consumes the one-shot new event
@@ -57,6 +57,7 @@ private:
   bool        detail_ = false;
   bool        muted_ = false;
   bool        ackPending_ = false;
+  std::string ackId_;
 };
 
 } // namespace alarmcore

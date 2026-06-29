@@ -294,11 +294,37 @@ void test_appcore_beep_is_one_shot() {
   TEST_ASSERT_FALSE(app.render().beep);   // subsequent render: no repeat
 }
 
-void test_appcore_ack_request_is_one_shot() {
-  AppCore app;
+void test_appcore_ack_one_captures_focus_id() {
+  AppCore app; app.setList(makeList(3));        // focus -> id0 (first unacked)
   app.acknowledge();
-  TEST_ASSERT_TRUE(app.takeAckRequest());
-  TEST_ASSERT_FALSE(app.takeAckRequest());
+  std::string id;
+  TEST_ASSERT_TRUE(app.takeAckOne(id));
+  TEST_ASSERT_EQUAL_STRING("id0", id.c_str());
+  TEST_ASSERT_FALSE(app.takeAckOne(id));        // one-shot
+}
+
+void test_appcore_ack_one_optimistic_advance() {
+  AppCore app; app.setList(makeList(3));        // id0 focused, all unacked, DETAIL
+  app.acknowledge();                             // ack id0 -> advance to id1
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+  TEST_ASSERT_EQUAL_INT(1, m.selectedIdx);       // advanced to next unacked
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)m.led);  // id1,id2 still unacked
+}
+
+void test_appcore_ack_one_last_goes_solid_list() {
+  AppCore app; app.setList(makeList(1));        // single unacked, focus id0, DETAIL
+  app.acknowledge();                             // ack id0 -> none left
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)m.screen);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)m.led);
+}
+
+void test_appcore_ack_one_no_focus_when_empty() {
+  AppCore app; app.setList(makeList(0));
+  app.acknowledge();
+  std::string id;
+  TEST_ASSERT_FALSE(app.takeAckOne(id));
 }
 
 void test_appcore_new_list_reclamps_selection() {
@@ -331,7 +357,10 @@ int main(int, char**) {
   RUN_TEST(test_appcore_detail_ignored_when_empty);
   RUN_TEST(test_appcore_mute_gates_beep);
   RUN_TEST(test_appcore_beep_is_one_shot);
-  RUN_TEST(test_appcore_ack_request_is_one_shot);
+  RUN_TEST(test_appcore_ack_one_captures_focus_id);
+  RUN_TEST(test_appcore_ack_one_optimistic_advance);
+  RUN_TEST(test_appcore_ack_one_last_goes_solid_list);
+  RUN_TEST(test_appcore_ack_one_no_focus_when_empty);
   RUN_TEST(test_appcore_new_list_reclamps_selection);
   RUN_TEST(test_appcore_conn_down_shows_status);
   RUN_TEST(test_appcore_triage_enters_detail_on_unacked);

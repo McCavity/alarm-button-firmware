@@ -50,11 +50,23 @@ void AppCore::toggleDetail() {
 
 void AppCore::toggleMute() { muted_ = !muted_; }
 
-void AppCore::acknowledge() { ackPending_ = true; }
+void AppCore::acknowledge() {
+  int n = list_.valid ? (int)list_.alarms.size() : 0;
+  if (n == 0 || selectedIdx_ < 0 || selectedIdx_ >= n) return;   // no focus -> no-op
+  ackId_ = list_.alarms[selectedIdx_].id;
+  ackPending_ = true;
+  list_.alarms[selectedIdx_].acked = true;        // optimistic: don't wait for the republish
+  // advance to the next unacked alarm, or drop to the list when none remain
+  int fu = firstUnacked();
+  if (fu >= 0) { selectedIdx_ = fu; detail_ = true; }
+  else         { selectedIdx_ = 0; detail_ = false; }
+  clampSelection();
+}
 
-bool AppCore::takeAckRequest() {
+bool AppCore::takeAckOne(std::string& id) {
   if (!ackPending_) return false;
   ackPending_ = false;
+  id = ackId_;
   return true;
 }
 
