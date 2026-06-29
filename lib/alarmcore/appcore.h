@@ -44,6 +44,9 @@ public:
 private:
   void clampSelection();
   std::string detailText() const;
+  std::string focusId() const;              // fingerprint under the cursor in the current list
+  int firstUnacked() const;                 // index of first !acked alarm, or -1
+  void reconcileFocus(const std::string& prevId);  // re-locate cursor after a list update
 
   ListPayload list_;
   NewPayload  new_;

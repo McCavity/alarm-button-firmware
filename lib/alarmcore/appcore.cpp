@@ -3,8 +3,38 @@
 namespace alarmcore {
 
 void AppCore::setList(const ListPayload& list) {
+  std::string prevId = focusId();   // fingerprint under the cursor in the OLD list
   list_ = list;
-  if (!list_.valid || list_.count == 0) detail_ = false;
+  reconcileFocus(prevId);
+}
+
+std::string AppCore::focusId() const {
+  if (list_.valid && selectedIdx_ >= 0 && selectedIdx_ < (int)list_.alarms.size())
+    return list_.alarms[selectedIdx_].id;
+  return "";
+}
+
+int AppCore::firstUnacked() const {
+  for (int i = 0; i < (int)list_.alarms.size(); i++)
+    if (!list_.alarms[i].acked) return i;
+  return -1;
+}
+
+void AppCore::reconcileFocus(const std::string& prevId) {
+  int n = list_.valid ? (int)list_.alarms.size() : 0;
+  if (n == 0) { selectedIdx_ = 0; detail_ = false; return; }
+  // Hold focus if the same fingerprint is still present AND still unacked (no yank on republish).
+  int keep = -1;
+  if (!prevId.empty())
+    for (int i = 0; i < n; i++)
+      if (list_.alarms[i].id == prevId) { keep = i; break; }
+  if (keep >= 0 && !list_.alarms[keep].acked) {
+    selectedIdx_ = keep;                              // leave detail_ as the user left it
+  } else {
+    int fu = firstUnacked();
+    if (fu >= 0) { selectedIdx_ = fu; detail_ = true; }   // jump to first unacked, auto-detail
+    else         { selectedIdx_ = 0; detail_ = false; }   // all acked -> list top
+  }
   clampSelection();
 }
 

@@ -205,6 +205,50 @@ static ListPayload makeList(int n) {
   return p;
 }
 
+static ListPayload makeListAllAcked(int n) {
+  ListPayload p = makeList(n);
+  for (auto& a : p.alarms) a.acked = true;
+  return p;
+}
+
+void test_appcore_triage_enters_detail_on_unacked() {
+  AppCore app; app.setList(makeList(2));        // both unacked
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+  TEST_ASSERT_EQUAL_INT(0, m.selectedIdx);      // first unacked
+}
+
+void test_appcore_triage_all_acked_shows_list() {
+  AppCore app; app.setList(makeListAllAcked(2));
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)m.screen);
+}
+
+void test_appcore_triage_focus_held_across_republish() {
+  AppCore app; app.setList(makeList(3)); app.nav(+2);   // focus id2
+  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);
+  app.setList(makeList(3));                              // same set republished
+  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);   // still id2, no jump
+}
+
+void test_appcore_triage_focus_lost_jumps_to_first_unacked() {
+  AppCore app; app.setList(makeList(3)); app.nav(+2);    // focus id2
+  ListPayload p = makeList(3);
+  p.alarms.pop_back(); p.count = 2;                      // id2 resolved (gone)
+  app.setList(p);
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT(0, m.selectedIdx);              // jumped to first unacked id0
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+}
+
+void test_appcore_triage_focus_acked_jumps_to_next() {
+  AppCore app; app.setList(makeList(3));                 // focus id0
+  ListPayload p = makeList(3);
+  p.alarms[0].acked = true;                             // id0 acked by wall switch
+  app.setList(p);
+  TEST_ASSERT_EQUAL_INT(1, app.render().selectedIdx);  // jumped to id1 (first unacked)
+}
+
 void test_appcore_selection_clamps() {
   AppCore app; app.setList(makeList(3));
   app.nav(+5);
@@ -214,13 +258,12 @@ void test_appcore_selection_clamps() {
 }
 
 void test_appcore_detail_toggle() {
-  AppCore app; app.setList(makeList(3)); app.nav(+1);
-  app.toggleDetail();
-  RenderModel m = app.render();
-  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
-  TEST_ASSERT_TRUE(m.detailText.find("host1") != std::string::npos);
-  app.toggleDetail();
+  AppCore app; app.setList(makeList(3));        // auto-DETAIL on first unacked
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)app.render().screen);
+  app.toggleDetail();                            // manual peek to LIST
   TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
+  app.toggleDetail();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)app.render().screen);
 }
 
 void test_appcore_detail_ignored_when_empty() {
@@ -289,6 +332,11 @@ int main(int, char**) {
   RUN_TEST(test_appcore_ack_request_is_one_shot);
   RUN_TEST(test_appcore_new_list_reclamps_selection);
   RUN_TEST(test_appcore_conn_down_shows_status);
+  RUN_TEST(test_appcore_triage_enters_detail_on_unacked);
+  RUN_TEST(test_appcore_triage_all_acked_shows_list);
+  RUN_TEST(test_appcore_triage_focus_held_across_republish);
+  RUN_TEST(test_appcore_triage_focus_lost_jumps_to_first_unacked);
+  RUN_TEST(test_appcore_triage_focus_acked_jumps_to_next);
   RUN_TEST(test_parseList_ok);
   RUN_TEST(test_parseList_empty);
   RUN_TEST(test_parseList_malformed);
