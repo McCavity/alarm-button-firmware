@@ -56,6 +56,7 @@ void AxiometaHAL::tick() {
   }
 
   updateLed();
+  updateSound(now);
 }
 
 bool AxiometaHAL::acknowledgePressed() { bool e = ackEvent_; ackEvent_ = false; return e; }
@@ -76,9 +77,21 @@ void AxiometaHAL::updateLed() {
   digitalWrite(PIN_LED, on ? HIGH : LOW);
 }
 
-void AxiometaHAL::playAlertSound(AlertSound level) {
-  if (level == AlertSound::OFF) return;
-  tone(PIN_BUZZER, level == AlertSound::URGENT ? 3200 : 2700, 120);
+void AxiometaHAL::playAlertSound(AlertSound level) { soundMode_ = level; }
+
+void AxiometaHAL::updateSound(uint32_t now) {
+  switch (soundMode_) {
+    case AlertSound::URGENT:
+      if (now - lastBeepMs_ >= 600) { tone(PIN_BUZZER, 3200, 200); lastBeepMs_ = now; }
+      break;
+    case AlertSound::SHORT_BEEP:
+      tone(PIN_BUZZER, 2700, 120); soundMode_ = AlertSound::OFF;   // single chirp
+      break;
+    case AlertSound::OFF:
+    default:
+      noTone(PIN_BUZZER);
+      break;
+  }
 }
 
 uint16_t AxiometaHAL::severityColor(const std::string& sev) const {

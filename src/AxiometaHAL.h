@@ -29,6 +29,7 @@ public:
 
 private:
   void updateLed();
+  void updateSound(uint32_t now);
   uint16_t severityColor(const std::string& sev) const;
 
   Adafruit_ST7735 tft_;
@@ -45,5 +46,7 @@ private:
   bool detailEvent_ = false;
 
   alarmcore::StatusLedMode ledMode_ = alarmcore::StatusLedMode::OFF;
+  alarmcore::AlertSound soundMode_ = alarmcore::AlertSound::OFF;
+  uint32_t lastBeepMs_ = 0;
   std::string lastSig_;   // last rendered screen signature (skip redundant redraws)
 };
