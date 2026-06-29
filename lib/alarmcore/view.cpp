@@ -15,11 +15,13 @@ ViewState computeView(const ListPayload& last, const Heartbeat& hb, bool heartbe
   }
   // LED tri-state mirrors computeSignaltower: empty -> off, any unacked -> fast blink,
   // all acked -> solid. (The acked flag is the contract's per-alarm ack state, §3.1.)
+  // Gate on the scan domain (alarms[]), not the loose count field: a malformed-but-valid
+  // payload with count>0 yet no alarm objects must read as OFF, never SOLID.
   bool anyUnacked = false;
   if (last.valid)
     for (const auto& a : last.alarms)
       if (!a.acked) { anyUnacked = true; break; }
-  if (v.count == 0)        v.led = LedMode::OFF;
+  if (last.alarms.empty()) v.led = LedMode::OFF;
   else if (anyUnacked)     v.led = LedMode::BLINK_FAST;
   else                     v.led = LedMode::SOLID;
 

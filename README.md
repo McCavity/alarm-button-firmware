@@ -74,7 +74,7 @@ esptool --port /dev/cu.usbmodem* write_flash 0x0 archive/demo-firmware-full-4MB-
   alarms in detail with focus pinned by fingerprint (held across the 15 s republish, optimistic
   local ack reconciled on the next list); ACK button publishes `ack_one` for the focused alarm
   (no button `ack_all` — that stays the wall-switch/ioBroker action); sustained urgent sound on
-  a new alarm (≤30 s, stops on ack / mute, re-arms per new event). 42 native tests green;
+  a new alarm (≤30 s, stops on ack / mute, re-arms per new event). 43 native tests green;
   HIL-verified against live ioBroker (`ack_one` round-trip with fingerprint → signal tower
   `fast_blink`→solid; tri-state LED; auto-detail; sound stop-on-ack).
 - **Provisioning (roadmap):** Tasmota-style first-time setup without hard-coded secrets —
