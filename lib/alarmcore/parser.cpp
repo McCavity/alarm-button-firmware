@@ -20,6 +20,7 @@ ListPayload parseList(const char* json) {
     al.severity = std::string(a["severity"] | "warning"); // fail safe: never silent
     al.summary = std::string(a["summary"] | "");
     al.since = std::string(a["since"] | "");
+    al.acked = a["acked"] | false;   // missing -> false (fail-safe: unacked = attention)
     out.alarms.push_back(al);
   }
   out.valid = true;

@@ -48,6 +48,21 @@ void test_parseList_host_failsafe() {
   TEST_ASSERT_EQUAL_STRING("unknown", p.alarms[0].host.c_str());
 }
 
+void test_parseList_acked() {
+  ListPayload p = parseList(
+    R"({"count":2,"alarms":[)"
+    R"({"id":"a","host":"h","severity":"warning","acked":true},)"
+    R"({"id":"b","host":"h2","severity":"warning","acked":false}]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_TRUE(p.alarms[0].acked);
+  TEST_ASSERT_FALSE(p.alarms[1].acked);
+}
+
+void test_parseList_acked_missing_defaults_false() {
+  ListPayload p = parseList(R"({"count":1,"alarms":[{"id":"a","host":"h","severity":"warning"}]})");
+  TEST_ASSERT_FALSE(p.alarms[0].acked);
+}
+
 void test_parseHeartbeat_ok() {
   Heartbeat h = parseHeartbeat(R"({"schema_version":1,"grafana_ok":true,"poll_age_s":8})");
   TEST_ASSERT_TRUE(h.valid);
@@ -263,6 +278,8 @@ int main(int, char**) {
   RUN_TEST(test_parseList_malformed);
   RUN_TEST(test_parseList_severity_failsafe);
   RUN_TEST(test_parseList_host_failsafe);
+  RUN_TEST(test_parseList_acked);
+  RUN_TEST(test_parseList_acked_missing_defaults_false);
   RUN_TEST(test_parseHeartbeat_ok);
   RUN_TEST(test_parseHeartbeat_age_null);
   RUN_TEST(test_parseNew_ok);
