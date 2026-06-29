@@ -48,6 +48,21 @@ void test_parseList_host_failsafe() {
   TEST_ASSERT_EQUAL_STRING("unknown", p.alarms[0].host.c_str());
 }
 
+void test_parseList_acked() {
+  ListPayload p = parseList(
+    R"({"count":2,"alarms":[)"
+    R"({"id":"a","host":"h","severity":"warning","acked":true},)"
+    R"({"id":"b","host":"h2","severity":"warning","acked":false}]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_TRUE(p.alarms[0].acked);
+  TEST_ASSERT_FALSE(p.alarms[1].acked);
+}
+
+void test_parseList_acked_missing_defaults_false() {
+  ListPayload p = parseList(R"({"count":1,"alarms":[{"id":"a","host":"h","severity":"warning"}]})");
+  TEST_ASSERT_FALSE(p.alarms[0].acked);
+}
+
 void test_parseHeartbeat_ok() {
   Heartbeat h = parseHeartbeat(R"({"schema_version":1,"grafana_ok":true,"poll_age_s":8})");
   TEST_ASSERT_TRUE(h.valid);
@@ -72,9 +87,8 @@ void test_parseNew_ok() {
 void test_view_alarms_blink_ok() {
   ListPayload p = parseList(LIST_JSON);
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
-  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
-  TEST_ASSERT_FALSE(v.beep);
   TEST_ASSERT_EQUAL_INT(2, (int)v.lines.size());
   TEST_ASSERT_EQUAL_STRING("host01 USV auf Batterie", v.lines[0].c_str());
   TEST_ASSERT_EQUAL_STRING("OK", v.statusText.c_str());
@@ -82,20 +96,28 @@ void test_view_alarms_blink_ok() {
 
 void test_view_empty_led_off() {
   ListPayload p = parseList(R"({"count":0,"alarms":[]})");
-  ViewState v = computeView(p, false, NewPayload{}, Heartbeat{}, false);
+  ViewState v = computeView(p, Heartbeat{}, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::OFF, (int)v.led);
 }
 
-void test_view_new_triggers_beep() {
+void test_view_all_acked_solid() {
   ListPayload p = parseList(LIST_JSON);
-  NewPayload n = parseNew(R"({"count_new":1,"max_severity":"warning"})");
+  for (auto& a : p.alarms) a.acked = true;
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
-  ViewState v = computeView(p, true, n, h, false);
-  TEST_ASSERT_TRUE(v.beep);
+  ViewState v = computeView(p, h, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)v.led);
+}
+
+void test_view_partial_acked_blinks() {
+  ListPayload p = parseList(LIST_JSON);
+  p.alarms[0].acked = true;        // one acked, one still unacked
+  Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
+  ViewState v = computeView(p, h, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
 }
 
 void test_view_stale_iobroker_down() {
-  ViewState v = computeView(ListPayload{}, false, NewPayload{}, Heartbeat{}, true);
+  ViewState v = computeView(ListPayload{}, Heartbeat{}, true);
   TEST_ASSERT_EQUAL_INT((int)Conn::IOBROKER_DOWN, (int)v.conn);
   TEST_ASSERT_EQUAL_STRING("ioBroker?", v.statusText.c_str());
 }
@@ -103,7 +125,7 @@ void test_view_stale_iobroker_down() {
 void test_view_grafana_down() {
   ListPayload p = parseList(LIST_JSON);
   Heartbeat h; h.valid = true; h.grafana_ok = false; h.poll_age_s = 5;
-  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)Conn::GRAFANA_DOWN, (int)v.conn);
   TEST_ASSERT_EQUAL_STRING("Grafana?", v.statusText.c_str());
 }
@@ -174,6 +196,52 @@ static ListPayload makeList(int n) {
   return p;
 }
 
+static ListPayload makeListAllAcked(int n) {
+  ListPayload p = makeList(n);
+  for (auto& a : p.alarms) a.acked = true;
+  return p;
+}
+
+void test_appcore_triage_enters_detail_on_unacked() {
+  AppCore app; app.setList(makeList(2));        // both unacked
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+  TEST_ASSERT_EQUAL_INT(0, m.selectedIdx);      // first unacked
+}
+
+void test_appcore_triage_all_acked_shows_list() {
+  AppCore app; app.setList(makeListAllAcked(2));
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)m.screen);
+}
+
+void test_appcore_triage_focus_held_across_republish() {
+  AppCore app; app.setList(makeList(3)); app.nav(+2);
+  app.toggleDetail();                                   // manual peek to LIST
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
+  app.setList(makeList(3));                             // same set republished
+  TEST_ASSERT_EQUAL_INT(2, app.render().selectedIdx);   // still id2
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen); // detail NOT yanked
+}
+
+void test_appcore_triage_focus_lost_jumps_to_first_unacked() {
+  AppCore app; app.setList(makeList(3)); app.nav(+2);    // focus id2
+  ListPayload p = makeList(3);
+  p.alarms.pop_back(); p.count = 2;                      // id2 resolved (gone)
+  app.setList(p);
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT(0, m.selectedIdx);              // jumped to first unacked id0
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+}
+
+void test_appcore_triage_focus_acked_jumps_to_next() {
+  AppCore app; app.setList(makeList(3));                 // focus id0
+  ListPayload p = makeList(3);
+  p.alarms[0].acked = true;                             // id0 acked by wall switch
+  app.setList(p);
+  TEST_ASSERT_EQUAL_INT(1, app.render().selectedIdx);  // jumped to id1 (first unacked)
+}
+
 void test_appcore_selection_clamps() {
   AppCore app; app.setList(makeList(3));
   app.nav(+5);
@@ -182,14 +250,22 @@ void test_appcore_selection_clamps() {
   TEST_ASSERT_EQUAL_INT(0, app.render().selectedIdx);
 }
 
+void test_appcore_clamp_uses_alarm_count_not_field() {
+  ListPayload p; p.valid = true; p.count = 5;   // count claims 5 but only 2 alarms present
+  Alarm a; a.id = "x0"; a.host = "h0"; a.severity = "warning"; p.alarms.push_back(a);
+  Alarm b; b.id = "x1"; b.host = "h1"; b.severity = "warning"; p.alarms.push_back(b);
+  AppCore app; app.setList(p);
+  app.nav(+10);
+  TEST_ASSERT_EQUAL_INT(1, app.render().selectedIdx);  // clamped to alarms.size()-1, not count-1
+}
+
 void test_appcore_detail_toggle() {
-  AppCore app; app.setList(makeList(3)); app.nav(+1);
-  app.toggleDetail();
-  RenderModel m = app.render();
-  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
-  TEST_ASSERT_TRUE(m.detailText.find("host1") != std::string::npos);
-  app.toggleDetail();
+  AppCore app; app.setList(makeList(3));        // auto-DETAIL on first unacked
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)app.render().screen);
+  app.toggleDetail();                            // manual peek to LIST
   TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
+  app.toggleDetail();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)app.render().screen);
 }
 
 void test_appcore_detail_ignored_when_empty() {
@@ -198,31 +274,78 @@ void test_appcore_detail_ignored_when_empty() {
   TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)app.render().screen);
 }
 
-void test_appcore_mute_gates_beep() {
-  AppCore muted; muted.setList(makeList(2));
+void test_appcore_mute_gates_sound() {
   NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+
+  AppCore muted; muted.setList(makeList(2));
   muted.toggleMute();
   muted.onNew(n);
-  TEST_ASSERT_FALSE(muted.render().beep);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)muted.render(1000).sound);
 
   AppCore loud; loud.setList(makeList(2));
   loud.onNew(n);
-  TEST_ASSERT_TRUE(loud.render().beep);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)loud.render(1000).sound);
 }
 
-void test_appcore_beep_is_one_shot() {
+void test_appcore_urgent_window_times_out() {
   AppCore app; app.setList(makeList(2));
   NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
   app.onNew(n);
-  TEST_ASSERT_TRUE(app.render().beep);    // first render consumes it
-  TEST_ASSERT_FALSE(app.render().beep);   // subsequent render: no repeat
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(0).sound);      // armed at t=0 (until 30000)
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(29999).sound);  // still within window
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)app.render(30000).sound);     // 30 s elapsed
 }
 
-void test_appcore_ack_request_is_one_shot() {
-  AppCore app;
+void test_appcore_urgent_stops_on_ack() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(0).sound);
   app.acknowledge();
-  TEST_ASSERT_TRUE(app.takeAckRequest());
-  TEST_ASSERT_FALSE(app.takeAckRequest());
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)app.render(1000).sound);
+}
+
+void test_appcore_urgent_rearms_on_new() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  app.render(0);                     // arm: until 30000
+  app.onNew(n);
+  app.render(20000);                 // re-arm: until 50000
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(40000).sound);  // off without re-arm
+}
+
+void test_appcore_ack_one_captures_focus_id() {
+  AppCore app; app.setList(makeList(3));        // focus -> id0 (first unacked)
+  app.acknowledge();
+  std::string id;
+  TEST_ASSERT_TRUE(app.takeAckOne(id));
+  TEST_ASSERT_EQUAL_STRING("id0", id.c_str());
+  TEST_ASSERT_FALSE(app.takeAckOne(id));        // one-shot
+}
+
+void test_appcore_ack_one_optimistic_advance() {
+  AppCore app; app.setList(makeList(3));        // id0 focused, all unacked, DETAIL
+  app.acknowledge();                             // ack id0 -> advance to id1
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)m.screen);
+  TEST_ASSERT_EQUAL_INT(1, m.selectedIdx);       // advanced to next unacked
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)m.led);  // id1,id2 still unacked
+}
+
+void test_appcore_ack_one_last_goes_solid_list() {
+  AppCore app; app.setList(makeList(1));        // single unacked, focus id0, DETAIL
+  app.acknowledge();                             // ack id0 -> none left
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT((int)Screen::LIST, (int)m.screen);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)m.led);
+}
+
+void test_appcore_ack_one_no_focus_when_empty() {
+  AppCore app; app.setList(makeList(0));
+  app.acknowledge();
+  std::string id;
+  TEST_ASSERT_FALSE(app.takeAckOne(id));
 }
 
 void test_appcore_new_list_reclamps_selection() {
@@ -251,24 +374,38 @@ int main(int, char**) {
   RUN_TEST(test_press_long_press_fires_once);
   RUN_TEST(test_press_idle_is_none);
   RUN_TEST(test_appcore_selection_clamps);
+  RUN_TEST(test_appcore_clamp_uses_alarm_count_not_field);
   RUN_TEST(test_appcore_detail_toggle);
   RUN_TEST(test_appcore_detail_ignored_when_empty);
-  RUN_TEST(test_appcore_mute_gates_beep);
-  RUN_TEST(test_appcore_beep_is_one_shot);
-  RUN_TEST(test_appcore_ack_request_is_one_shot);
+  RUN_TEST(test_appcore_mute_gates_sound);
+  RUN_TEST(test_appcore_urgent_window_times_out);
+  RUN_TEST(test_appcore_urgent_stops_on_ack);
+  RUN_TEST(test_appcore_urgent_rearms_on_new);
+  RUN_TEST(test_appcore_ack_one_captures_focus_id);
+  RUN_TEST(test_appcore_ack_one_optimistic_advance);
+  RUN_TEST(test_appcore_ack_one_last_goes_solid_list);
+  RUN_TEST(test_appcore_ack_one_no_focus_when_empty);
   RUN_TEST(test_appcore_new_list_reclamps_selection);
   RUN_TEST(test_appcore_conn_down_shows_status);
+  RUN_TEST(test_appcore_triage_enters_detail_on_unacked);
+  RUN_TEST(test_appcore_triage_all_acked_shows_list);
+  RUN_TEST(test_appcore_triage_focus_held_across_republish);
+  RUN_TEST(test_appcore_triage_focus_lost_jumps_to_first_unacked);
+  RUN_TEST(test_appcore_triage_focus_acked_jumps_to_next);
   RUN_TEST(test_parseList_ok);
   RUN_TEST(test_parseList_empty);
   RUN_TEST(test_parseList_malformed);
   RUN_TEST(test_parseList_severity_failsafe);
   RUN_TEST(test_parseList_host_failsafe);
+  RUN_TEST(test_parseList_acked);
+  RUN_TEST(test_parseList_acked_missing_defaults_false);
   RUN_TEST(test_parseHeartbeat_ok);
   RUN_TEST(test_parseHeartbeat_age_null);
   RUN_TEST(test_parseNew_ok);
   RUN_TEST(test_view_alarms_blink_ok);
   RUN_TEST(test_view_empty_led_off);
-  RUN_TEST(test_view_new_triggers_beep);
+  RUN_TEST(test_view_all_acked_solid);
+  RUN_TEST(test_view_partial_acked_blinks);
   RUN_TEST(test_view_stale_iobroker_down);
   RUN_TEST(test_view_grafana_down);
   return UNITY_END();

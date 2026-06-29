@@ -56,6 +56,7 @@ void AxiometaHAL::tick() {
   }
 
   updateLed();
+  updateSound(now);
 }
 
 bool AxiometaHAL::acknowledgePressed() { bool e = ackEvent_; ackEvent_ = false; return e; }
@@ -76,9 +77,24 @@ void AxiometaHAL::updateLed() {
   digitalWrite(PIN_LED, on ? HIGH : LOW);
 }
 
-void AxiometaHAL::playAlertSound(AlertSound level) {
-  if (level == AlertSound::OFF) return;
-  tone(PIN_BUZZER, level == AlertSound::URGENT ? 3200 : 2700, 120);
+void AxiometaHAL::playAlertSound(AlertSound level) { soundMode_ = level; }
+
+void AxiometaHAL::updateSound(uint32_t now) {
+  switch (soundMode_) {
+    case AlertSound::URGENT:
+      if (now - lastBeepMs_ >= 600) { tone(PIN_BUZZER, 3200, 200); lastBeepMs_ = now; }
+      buzzerActive_ = true;
+      break;
+    case AlertSound::SHORT_BEEP:
+      tone(PIN_BUZZER, 2700, 120); soundMode_ = AlertSound::OFF;   // single chirp (auto-expires)
+      break;
+    case AlertSound::OFF:
+    default:
+      // Stop once on the transition to OFF — NOT every idle frame: noTone() on an
+      // uninitialized LEDC channel spews "LEDC is not initialized" at loop frequency.
+      if (buzzerActive_) { noTone(PIN_BUZZER); buzzerActive_ = false; }
+      break;
+  }
 }
 
 uint16_t AxiometaHAL::severityColor(const std::string& sev) const {

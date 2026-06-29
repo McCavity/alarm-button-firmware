@@ -3,8 +3,38 @@
 namespace alarmcore {
 
 void AppCore::setList(const ListPayload& list) {
+  std::string prevId = focusId();   // fingerprint under the cursor in the OLD list
   list_ = list;
-  if (!list_.valid || list_.count == 0) detail_ = false;
+  reconcileFocus(prevId);
+}
+
+std::string AppCore::focusId() const {
+  if (list_.valid && selectedIdx_ >= 0 && selectedIdx_ < (int)list_.alarms.size())
+    return list_.alarms[selectedIdx_].id;
+  return "";
+}
+
+int AppCore::firstUnacked() const {
+  for (int i = 0; i < (int)list_.alarms.size(); i++)
+    if (!list_.alarms[i].acked) return i;
+  return -1;
+}
+
+void AppCore::reconcileFocus(const std::string& prevId) {
+  int n = list_.valid ? (int)list_.alarms.size() : 0;
+  if (n == 0) { selectedIdx_ = 0; detail_ = false; return; }
+  // Hold focus if the same fingerprint is still present AND still unacked (no yank on republish).
+  int keep = -1;
+  if (!prevId.empty())
+    for (int i = 0; i < n; i++)
+      if (list_.alarms[i].id == prevId) { keep = i; break; }
+  if (keep >= 0 && !list_.alarms[keep].acked) {
+    selectedIdx_ = keep;                              // leave detail_ as the user left it
+  } else {
+    int fu = firstUnacked();
+    if (fu >= 0) { selectedIdx_ = fu; detail_ = true; }   // jump to first unacked, auto-detail
+    else         { selectedIdx_ = 0; detail_ = false; }   // all acked -> list top
+  }
   clampSelection();
 }
 
@@ -20,16 +50,29 @@ void AppCore::toggleDetail() {
 
 void AppCore::toggleMute() { muted_ = !muted_; }
 
-void AppCore::acknowledge() { ackPending_ = true; }
+void AppCore::acknowledge() {
+  int n = list_.valid ? (int)list_.alarms.size() : 0;
+  if (n == 0 || selectedIdx_ < 0 || selectedIdx_ >= n) return;   // no focus -> no-op
+  ackId_ = list_.alarms[selectedIdx_].id;
+  ackPending_ = true;
+  urgentUntilMs_ = 0;   // first ack stops the urgent sound
+  list_.alarms[selectedIdx_].acked = true;        // optimistic: don't wait for the republish
+  // advance to the next unacked alarm, or drop to the list when none remain
+  int fu = firstUnacked();
+  if (fu >= 0) { selectedIdx_ = fu; detail_ = true; }
+  else         { selectedIdx_ = 0; detail_ = false; }
+  clampSelection();
+}
 
-bool AppCore::takeAckRequest() {
+bool AppCore::takeAckOne(std::string& id) {
   if (!ackPending_) return false;
   ackPending_ = false;
+  id = ackId_;
   return true;
 }
 
 void AppCore::clampSelection() {
-  int n = (list_.valid ? list_.count : 0);
+  int n = (list_.valid ? (int)list_.alarms.size() : 0);
   if (n <= 0) { selectedIdx_ = 0; return; }
   if (selectedIdx_ < 0) selectedIdx_ = 0;
   if (selectedIdx_ > n - 1) selectedIdx_ = n - 1;
@@ -41,13 +84,17 @@ std::string AppCore::detailText() const {
   return a.host + "\n" + a.name + "\n" + a.summary + "\n" + a.since;
 }
 
-RenderModel AppCore::render() {
-  ViewState v = computeView(list_, newPending_, new_, hb_, stale_);
-  newPending_ = false;   // one-shot beep consumed
+RenderModel AppCore::render(uint32_t nowMs) {
+  ViewState v = computeView(list_, hb_, stale_);
+
+  // A fresh new event arms a 30 s urgent window (re-arm on every new); first ack / mute /
+  // timeout end it. acknowledge() zeroes the deadline.
+  if (newPending_ && new_.valid && new_.count_new > 0) urgentUntilMs_ = nowMs + 30000;
+  newPending_ = false;   // one-shot consumed
 
   RenderModel m;
   m.led = v.led;
-  m.beep = v.beep && !muted_;
+  m.sound = (nowMs < urgentUntilMs_ && !muted_) ? AlertSound::URGENT : AlertSound::OFF;
   m.count = v.count;
   m.maxSeverity = v.maxSeverity;
   m.lines = v.lines;

@@ -22,7 +22,7 @@ public:
   void onNew(NewCb cb)             { newCb_ = cb; }
   void onHeartbeat(HeartbeatCb cb) { hbCb_ = cb; }
 
-  void publishAck(const char* action);
+  void publishAck(const char* action, const char* id = nullptr);
 
 private:
   void ensureWifi();

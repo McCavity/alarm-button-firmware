@@ -90,18 +90,21 @@ bool MqttLink::isoTimeUtc(char* out, size_t n) {
   return true;
 }
 
-void MqttLink::publishAck(const char* action) {
+void MqttLink::publishAck(const char* action, const char* id) {
   char ts[32];
-  char payload[160];
-  if (isoTimeUtc(ts, sizeof(ts))) {
+  char payload[224];
+  bool haveTs = isoTimeUtc(ts, sizeof(ts));
+  char idField[160] = "";
+  if (id && id[0]) snprintf(idField, sizeof(idField), ",\"id\":\"%s\"", id);
+  if (haveTs) {
     snprintf(payload, sizeof(payload),
-      "{\"schema_version\":1,\"device_id\":\"%s\",\"ts\":\"%s\",\"action\":\"%s\"}",
-      DEVICE_ID, ts, action);
+      "{\"schema_version\":1,\"device_id\":\"%s\",\"ts\":\"%s\",\"action\":\"%s\"%s}",
+      DEVICE_ID, ts, action, idField);
   } else {
     // SNTP not ready: omit ts rather than send a wrong one (ioBroker stamps on receipt).
     snprintf(payload, sizeof(payload),
-      "{\"schema_version\":1,\"device_id\":\"%s\",\"action\":\"%s\"}",
-      DEVICE_ID, action);
+      "{\"schema_version\":1,\"device_id\":\"%s\",\"action\":\"%s\"%s}",
+      DEVICE_ID, action, idField);
   }
   client_.publish("alarmbutton/" DEVICE_ID "/ack", payload, false, 1);  // no retain, QoS 1
   Serial.printf("[mqtt] ack -> %s\n", payload);

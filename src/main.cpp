@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <string>
 #include "AxiometaHAL.h"
 #include "appcore.h"
 #include "contract.h"
@@ -35,8 +36,9 @@ void loop() {
   mqtt.loop();
   hal.tick();
 
-  if (hal.acknowledgePressed())  { app.acknowledge();  Serial.println("ACK"); }
-  if (app.takeAckRequest()) mqtt.publishAck("ack_all");
+  if (hal.acknowledgePressed()) { app.acknowledge(); Serial.println("ACK"); }
+  std::string ackId;
+  if (app.takeAckOne(ackId)) mqtt.publishAck("ack_one", ackId.c_str());
   int d = hal.navDelta();        if (d) app.nav(d);
   if (hal.detailTogglePressed()) { app.toggleDetail(); Serial.println("DETAIL toggle"); }
   if (hal.muteTogglePressed())   { app.toggleMute();   Serial.printf("MUTE=%d\n", app.muted()); }
@@ -54,9 +56,9 @@ void loop() {
                (mqtt.lastHeartbeatMs() != 0 && millis() - mqtt.lastHeartbeatMs() > 45000UL);
   app.onHeartbeat(lastHb, stale);
 
-  RenderModel m = app.render();
+  RenderModel m = app.render(millis());
   hal.setStatusLed(toStatusLed(m.led));
-  if (m.beep) hal.playAlertSound(AlertSound::SHORT_BEEP);
+  hal.playAlertSound(m.sound);
   switch (m.screen) {
     case Screen::LIST:   hal.showAlarmList(m.lines, m.selectedIdx, m.maxSeverity); break;
     case Screen::DETAIL: hal.showAlarmDetail(m.detailText);                        break;

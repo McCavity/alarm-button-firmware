@@ -13,6 +13,7 @@ struct Alarm {
   std::string severity;  // "critical" | "warning" | "info"
   std::string summary;
   std::string since;     // ISO 8601 (offset tolerated, do not hardcode to Z)
+  bool acked = false;    // per-alarm acknowledge state (contract §3.1, additive). ioBroker is truth.
 };
 
 struct ListPayload {
