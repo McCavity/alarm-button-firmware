@@ -101,6 +101,7 @@ void MqttLink::publishAck(const char* action, const char* id) {
       "{\"schema_version\":1,\"device_id\":\"%s\",\"ts\":\"%s\",\"action\":\"%s\"%s}",
       DEVICE_ID, ts, action, idField);
   } else {
+    // SNTP not ready: omit ts rather than send a wrong one (ioBroker stamps on receipt).
     snprintf(payload, sizeof(payload),
       "{\"schema_version\":1,\"device_id\":\"%s\",\"action\":\"%s\"%s}",
       DEVICE_ID, action, idField);

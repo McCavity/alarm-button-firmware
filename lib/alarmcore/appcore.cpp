@@ -71,7 +71,7 @@ bool AppCore::takeAckOne(std::string& id) {
 }
 
 void AppCore::clampSelection() {
-  int n = (list_.valid ? list_.count : 0);
+  int n = (list_.valid ? (int)list_.alarms.size() : 0);
   if (n <= 0) { selectedIdx_ = 0; return; }
   if (selectedIdx_ < 0) selectedIdx_ = 0;
   if (selectedIdx_ > n - 1) selectedIdx_ = n - 1;

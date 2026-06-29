@@ -259,6 +259,15 @@ void test_appcore_selection_clamps() {
   TEST_ASSERT_EQUAL_INT(0, app.render().selectedIdx);
 }
 
+void test_appcore_clamp_uses_alarm_count_not_field() {
+  ListPayload p; p.valid = true; p.count = 5;   // count claims 5 but only 2 alarms present
+  Alarm a; a.id = "x0"; a.host = "h0"; a.severity = "warning"; p.alarms.push_back(a);
+  Alarm b; b.id = "x1"; b.host = "h1"; b.severity = "warning"; p.alarms.push_back(b);
+  AppCore app; app.setList(p);
+  app.nav(+10);
+  TEST_ASSERT_EQUAL_INT(1, app.render().selectedIdx);  // clamped to alarms.size()-1, not count-1
+}
+
 void test_appcore_detail_toggle() {
   AppCore app; app.setList(makeList(3));        // auto-DETAIL on first unacked
   TEST_ASSERT_EQUAL_INT((int)Screen::DETAIL, (int)app.render().screen);
@@ -353,6 +362,7 @@ int main(int, char**) {
   RUN_TEST(test_press_long_press_fires_once);
   RUN_TEST(test_press_idle_is_none);
   RUN_TEST(test_appcore_selection_clamps);
+  RUN_TEST(test_appcore_clamp_uses_alarm_count_not_field);
   RUN_TEST(test_appcore_detail_toggle);
   RUN_TEST(test_appcore_detail_ignored_when_empty);
   RUN_TEST(test_appcore_mute_gates_beep);
