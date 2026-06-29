@@ -83,13 +83,16 @@ void AxiometaHAL::updateSound(uint32_t now) {
   switch (soundMode_) {
     case AlertSound::URGENT:
       if (now - lastBeepMs_ >= 600) { tone(PIN_BUZZER, 3200, 200); lastBeepMs_ = now; }
+      buzzerActive_ = true;
       break;
     case AlertSound::SHORT_BEEP:
-      tone(PIN_BUZZER, 2700, 120); soundMode_ = AlertSound::OFF;   // single chirp
+      tone(PIN_BUZZER, 2700, 120); soundMode_ = AlertSound::OFF;   // single chirp (auto-expires)
       break;
     case AlertSound::OFF:
     default:
-      noTone(PIN_BUZZER);
+      // Stop once on the transition to OFF — NOT every idle frame: noTone() on an
+      // uninitialized LEDC channel spews "LEDC is not initialized" at loop frequency.
+      if (buzzerActive_) { noTone(PIN_BUZZER); buzzerActive_ = false; }
       break;
   }
 }

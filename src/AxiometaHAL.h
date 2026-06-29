@@ -48,5 +48,7 @@ private:
   alarmcore::StatusLedMode ledMode_ = alarmcore::StatusLedMode::OFF;
   alarmcore::AlertSound soundMode_ = alarmcore::AlertSound::OFF;
   uint32_t lastBeepMs_ = 0;
+  bool buzzerActive_ = false;   // true while a tone is sounding; gates noTone() to the OFF transition
+                                // (calling noTone() every idle frame floods the LEDC "not initialized" log)
   std::string lastSig_;   // last rendered screen signature (skip redundant redraws)
 };
