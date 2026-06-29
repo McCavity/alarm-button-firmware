@@ -101,6 +101,22 @@ void test_view_empty_led_off() {
   TEST_ASSERT_EQUAL_INT((int)LedMode::OFF, (int)v.led);
 }
 
+void test_view_all_acked_solid() {
+  ListPayload p = parseList(LIST_JSON);
+  for (auto& a : p.alarms) a.acked = true;
+  Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
+  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)v.led);
+}
+
+void test_view_partial_acked_blinks() {
+  ListPayload p = parseList(LIST_JSON);
+  p.alarms[0].acked = true;        // one acked, one still unacked
+  Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
+  ViewState v = computeView(p, false, NewPayload{}, h, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+}
+
 void test_view_new_triggers_beep() {
   ListPayload p = parseList(LIST_JSON);
   NewPayload n = parseNew(R"({"count_new":1,"max_severity":"warning"})");
@@ -285,6 +301,8 @@ int main(int, char**) {
   RUN_TEST(test_parseNew_ok);
   RUN_TEST(test_view_alarms_blink_ok);
   RUN_TEST(test_view_empty_led_off);
+  RUN_TEST(test_view_all_acked_solid);
+  RUN_TEST(test_view_partial_acked_blinks);
   RUN_TEST(test_view_new_triggers_beep);
   RUN_TEST(test_view_stale_iobroker_down);
   RUN_TEST(test_view_grafana_down);
