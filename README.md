@@ -69,9 +69,14 @@ esptool --port /dev/cu.usbmodem* write_flash 0x0 archive/demo-firmware-full-4MB-
   non-blocking reconnect + SNTP, `ack_all` publish on button press. HIL-verified end-to-end
   against the live ioBroker: connect (unique client id), retained list renders, `new`→beep,
   heartbeat-stale→"ioBroker?" (recovers), ack→signal tower solid. 28 native tests still green.
-- **Phase 1b (next):** triage queue (unacked → detail, `ack_one`, list reconciliation) +
-  contract `acked` flag → button LED mirrors the signal tower's tri-state (unacked blink /
-  all acked solid / empty off); sustained alert sound (≤30 s or until ack).
+- **Phase 1b ✓** (2026-06-29): per-alarm `acked` consumed → button LED is the signal-tower
+  tri-state (empty off / unacked blink / all acked solid); triage queue auto-walks unacked
+  alarms in detail with focus pinned by fingerprint (held across the 15 s republish, optimistic
+  local ack reconciled on the next list); ACK button publishes `ack_one` for the focused alarm
+  (no button `ack_all` — that stays the wall-switch/ioBroker action); sustained urgent sound on
+  a new alarm (≤30 s, stops on ack / mute, re-arms per new event). 42 native tests green;
+  HIL-verified against live ioBroker (`ack_one` round-trip with fingerprint → signal tower
+  `fast_blink`→solid; tri-state LED; auto-detail; sound stop-on-ack).
 - **Provisioning (roadmap):** Tasmota-style first-time setup without hard-coded secrets —
   an unconfigured board opens its own Wi-Fi (captive-portal AP) with a small web UI to set
   Wi-Fi + Wi-Fi security + MQTT credentials, password-protect admin access, optionally
