@@ -115,10 +115,12 @@ uint16_t AxiometaHAL::severityColor(const std::string& sev) const {
 static const uint16_t COL_GREY = 0x7BEF;
 
 void AxiometaHAL::showAlarmList(const alarmcore::ListView& v) {
-  std::string sig = "L|" + std::to_string(v.selectedIdx) + "|" + std::to_string(v.scrollTop) + "|" +
-                    v.maxSeverity + "|" + std::to_string(v.total) + "|" + std::to_string(v.critCount) + "|" +
-                    std::to_string(v.warnCount) + "|" + std::to_string(v.omitted);
-  for (const auto& r : v.rows) sig += "|" + r.severity + (r.acked ? "+" : "-") + r.text;
+  std::string sig;
+  sig.reserve(64 + 48 * v.rows.size());
+  sig += "L|"; sig += std::to_string(v.selectedIdx); sig += "|"; sig += std::to_string(v.scrollTop); sig += "|";
+  sig += v.maxSeverity; sig += "|"; sig += std::to_string(v.total); sig += "|"; sig += std::to_string(v.critCount); sig += "|";
+  sig += std::to_string(v.warnCount); sig += "|"; sig += std::to_string(v.omitted);
+  for (const auto& r : v.rows) { sig += "|"; sig += r.severity; sig += (r.acked ? "+" : "-"); sig += r.text; }
   if (sig == lastSig_) return;     // unchanged -> skip redraw (no flicker)
   lastSig_ = sig;
 
@@ -148,7 +150,9 @@ void AxiometaHAL::showAlarmList(const alarmcore::ListView& v) {
     const alarmcore::Row& r = v.rows[i];
     bool sel = (i == v.selectedIdx);
     if (sel) tft_.fillRect(0, y - 1, tft_.width() - 4, rowH, ST77XX_WHITE);
-    tft_.fillCircle(4, y + 3, 2, severityColor(r.severity));
+    uint16_t dotColor = severityColor(r.severity);
+    if (sel && dotColor == ST77XX_WHITE) dotColor = ST77XX_BLACK;   // else invisible on the white selection bar
+    tft_.fillCircle(4, y + 3, 2, dotColor);
     tft_.setTextColor(sel ? ST77XX_BLACK : (r.acked ? COL_GREY : ST77XX_WHITE));
     tft_.setCursor(9, y);
     tft_.print(r.text.substr(0, 22).c_str());

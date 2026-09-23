@@ -79,6 +79,39 @@ void test_parseList_omitted_missing_defaults_zero() {
   TEST_ASSERT_EQUAL_INT(0, p.omitted_unacked);
 }
 
+void test_parseList_omitted_negative_clamped_to_zero() {
+  // Fail-unsafe otherwise: a negative omitted subtracts from the visible alarm count
+  // downstream (totalAlarms = alarms.size() + omitted) and can turn the LED off while
+  // an alarm is still unacked. Never let the server's field go negative.
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":-5,"alarms":[{"id":"a","host":"h","severity":"warning","acked":false}]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(0, p.omitted);
+}
+
+void test_view_omitted_negative_still_blinks() {
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":-5,"alarms":[{"id":"a","host":"h","severity":"warning","acked":false}]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+  TEST_ASSERT_EQUAL_INT(1, v.total);
+}
+
+void test_parseList_omitted_unacked_without_omitted_clamped() {
+  // omitted_unacked > omitted (here omitted==0, empty alarms[]) must never yield fewer
+  // hidden alarms than hidden UNACKED ones -> errs towards attention.
+  ListPayload p = parseList(R"({"count":0,"omitted":0,"omitted_unacked":2,"alarms":[]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(2, p.omitted);
+}
+
+void test_view_omitted_unacked_without_omitted_blinks() {
+  ListPayload p = parseList(R"({"count":0,"omitted":0,"omitted_unacked":2,"alarms":[]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+  TEST_ASSERT_TRUE(v.total >= 2);
+}
+
 void test_parseHeartbeat_ok() {
   Heartbeat h = parseHeartbeat(R"({"schema_version":1,"grafana_ok":true,"poll_age_s":8})");
   TEST_ASSERT_TRUE(h.valid);
@@ -487,6 +520,10 @@ void test_scroll_clamps_short_list() {
   TEST_ASSERT_EQUAL_INT(0, scrollTop(0, 0, 7, 3));     // empty
 }
 
+void test_scroll_clamps_when_list_shrinks_while_scrolled() {
+  TEST_ASSERT_EQUAL_INT(3, scrollTop(9, 10, 7, 5));    // list shrank while scrolled
+}
+
 void test_appcore_scroll_shows_omitted_row_at_bottom() {
   AppCore app; ListPayload p = makeListAllAcked(10); p.omitted = 4;
   app.setList(p);
@@ -534,6 +571,7 @@ int main(int, char**) {
   RUN_TEST(test_scroll_follows_focus_down);
   RUN_TEST(test_scroll_follows_focus_up);
   RUN_TEST(test_scroll_clamps_short_list);
+  RUN_TEST(test_scroll_clamps_when_list_shrinks_while_scrolled);
   RUN_TEST(test_appcore_scroll_shows_omitted_row_at_bottom);
   RUN_TEST(test_appcore_scroll_follows_nav);
   RUN_TEST(test_appcore_triage_enters_detail_on_unacked);
@@ -550,6 +588,10 @@ int main(int, char**) {
   RUN_TEST(test_parseList_acked_missing_defaults_false);
   RUN_TEST(test_parseList_omitted);
   RUN_TEST(test_parseList_omitted_missing_defaults_zero);
+  RUN_TEST(test_parseList_omitted_negative_clamped_to_zero);
+  RUN_TEST(test_view_omitted_negative_still_blinks);
+  RUN_TEST(test_parseList_omitted_unacked_without_omitted_clamped);
+  RUN_TEST(test_view_omitted_unacked_without_omitted_blinks);
   RUN_TEST(test_parseHeartbeat_ok);
   RUN_TEST(test_parseHeartbeat_age_null);
   RUN_TEST(test_parseNew_ok);

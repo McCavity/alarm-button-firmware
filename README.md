@@ -74,9 +74,18 @@ esptool --port /dev/cu.usbmodem* write_flash 0x0 archive/demo-firmware-full-4MB-
   alarms in detail with focus pinned by fingerprint (held across the 15 s republish, optimistic
   local ack reconciled on the next list); ACK button publishes `ack_one` for the focused alarm
   (no button `ack_all` — that stays the wall-switch/ioBroker action); sustained urgent sound on
-  a new alarm (≤30 s, stops on ack / mute, re-arms per new event). 43 native tests green;
-  HIL-verified against live ioBroker (`ack_one` round-trip with fingerprint → signal tower
-  `fast_blink`→solid; tri-state LED; auto-detail; sound stop-on-ack).
+  a new alarm (≤30 s, stops on ack / mute, re-arms per new event) that ends when the sound is
+  silenced from ANY source — local ack, mute, timeout, or an external ack (wall switch, panel,
+  another client) reflected back in the next republished list, not only a local ack/mute. 43
+  native tests green; HIL-verified against live ioBroker (`ack_one` round-trip with fingerprint
+  → signal tower `fast_blink`→solid; tri-state LED; auto-detail; sound stop-on-ack).
+- **Phase 2 ✓** (2026-09-23): scrolling alarm list (7 rows, right-edge scrollbar) with a
+  per-row severity dot and a grey ack check (seen, not resolved); header reads
+  `ALARMS n|CRIT n|WARN n`; the contract's additive `omitted` / `omitted_unacked` fields are
+  honoured with a "+N weitere" virtual row at the bottom of the list, and the LED/sound gate
+  never counts fewer hidden alarms than hidden *unacked* ones, even on a negative or
+  inconsistent `omitted` value (fail-safe: errs towards attention). Display colour-order fix
+  for the AX22 panel (BGR, not the library's default RGB MADCTL).
 - **Provisioning (roadmap):** Tasmota-style first-time setup without hard-coded secrets —
   an unconfigured board opens its own Wi-Fi (captive-portal AP) with a small web UI to set
   Wi-Fi + Wi-Fi security + MQTT credentials, password-protect admin access, optionally

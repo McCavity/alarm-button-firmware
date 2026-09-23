@@ -1,4 +1,5 @@
 #include "appcore.h"
+#include <utility>
 
 namespace alarmcore {
 
@@ -100,7 +101,6 @@ RenderModel AppCore::render(uint32_t nowMs) {
   m.sound = (nowMs < urgentUntilMs_ && !muted_) ? AlertSound::URGENT : AlertSound::OFF;
   m.count = v.count;
   m.maxSeverity = v.maxSeverity;
-  m.rows = v.rows;
   m.critCount = v.critCount; m.warnCount = v.warnCount;
   m.omitted = v.omitted;     m.total = v.total;
   m.selectedIdx = selectedIdx_;
@@ -112,6 +112,7 @@ RenderModel AppCore::render(uint32_t nowMs) {
   int focus = (virt && selectedIdx_ == n - 1) ? n : selectedIdx_;
   scrollTop_ = scrollTop(focus, n + virt, LIST_ROWS, scrollTop_);
   m.scrollTop = scrollTop_;
+  m.rows = std::move(v.rows);   // v is local and unused past this point (avoid a per-frame copy)
 
   if (v.conn != Conn::OK) {
     m.screen = Screen::STATUS;
