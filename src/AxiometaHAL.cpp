@@ -108,7 +108,8 @@ static const uint16_t COL_GREY = 0x7BEF;
 
 void AxiometaHAL::showAlarmList(const alarmcore::ListView& v) {
   std::string sig = "L|" + std::to_string(v.selectedIdx) + "|" + std::to_string(v.scrollTop) + "|" +
-                    v.maxSeverity + "|" + std::to_string(v.total);
+                    v.maxSeverity + "|" + std::to_string(v.total) + "|" + std::to_string(v.critCount) + "|" +
+                    std::to_string(v.warnCount) + "|" + std::to_string(v.omitted);
   for (const auto& r : v.rows) sig += "|" + r.severity + (r.acked ? "+" : "-") + r.text;
   if (sig == lastSig_) return;     // unchanged -> skip redraw (no flicker)
   lastSig_ = sig;
