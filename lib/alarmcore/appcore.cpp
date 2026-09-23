@@ -6,6 +6,9 @@ void AppCore::setList(const ListPayload& list) {
   std::string prevId = focusId();   // fingerprint under the cursor in the OLD list
   list_ = list;
   reconcileFocus(prevId);
+  // An ack from ANY source (button, wall switch, remote, panel) arrives as acked:true in the
+  // republished list. Nothing left to attend to -> end the urgent window (Phase 2, strand 1).
+  if (firstUnacked() < 0) urgentUntilMs_ = 0;
 }
 
 std::string AppCore::focusId() const {

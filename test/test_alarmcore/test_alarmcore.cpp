@@ -327,6 +327,35 @@ void test_appcore_urgent_rearms_on_new() {
   TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(40000).sound);  // off without re-arm
 }
 
+void test_appcore_urgent_stops_on_external_ack() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(0).sound);
+  app.setList(makeListAllAcked(2));          // ACK kam vom Wandschalter, nicht vom Button
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)app.render(1000).sound);
+}
+
+void test_appcore_urgent_stops_when_list_empties() {
+  AppCore app; app.setList(makeList(1));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "warning";
+  app.onNew(n);
+  app.render(0);
+  app.setList(makeList(0));                  // Alarm resolved
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::OFF, (int)app.render(1000).sound);
+}
+
+void test_appcore_urgent_continues_while_unacked_remains() {
+  AppCore app; app.setList(makeList(2));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "critical";
+  app.onNew(n);
+  app.render(0);
+  ListPayload p = makeList(2);
+  p.alarms[0].acked = true;                  // nur einer quittiert
+  app.setList(p);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(1000).sound);
+}
+
 void test_appcore_ack_one_captures_focus_id() {
   AppCore app; app.setList(makeList(3));        // focus -> id0 (first unacked)
   app.acknowledge();
@@ -393,6 +422,9 @@ int main(int, char**) {
   RUN_TEST(test_appcore_urgent_window_times_out);
   RUN_TEST(test_appcore_urgent_stops_on_ack);
   RUN_TEST(test_appcore_urgent_rearms_on_new);
+  RUN_TEST(test_appcore_urgent_stops_on_external_ack);
+  RUN_TEST(test_appcore_urgent_stops_when_list_empties);
+  RUN_TEST(test_appcore_urgent_continues_while_unacked_remains);
   RUN_TEST(test_appcore_ack_one_captures_focus_id);
   RUN_TEST(test_appcore_ack_one_optimistic_advance);
   RUN_TEST(test_appcore_ack_one_last_goes_solid_list);
