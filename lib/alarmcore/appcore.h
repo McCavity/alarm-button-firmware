@@ -16,7 +16,8 @@ struct RenderModel {
   LedMode led = LedMode::OFF;
   AlertSound sound = AlertSound::OFF;   // OFF | URGENT (sustained, gated by mute)
   Screen screen = Screen::LIST;
-  std::vector<std::string> lines;    // LIST: "host name" per alarm
+  std::vector<Row> rows;             // LIST: structured alarm rows
+  int critCount = 0, warnCount = 0, omitted = 0, total = 0;
   int selectedIdx = 0;               // LIST
   int count = 0;
   std::string maxSeverity;           // LIST header colour

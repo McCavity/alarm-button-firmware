@@ -8,10 +8,17 @@ ViewState computeView(const ListPayload& last, const Heartbeat& hb, bool heartbe
   v.maxSeverity = last.valid ? last.max_severity : "";
   if (last.valid) {
     for (const auto& a : last.alarms) {
-      std::string line = a.host;
-      if (!a.name.empty()) line += " " + a.name;
-      v.lines.push_back(line);
+      Row r;
+      r.severity = a.severity;
+      r.acked = a.acked;
+      r.text = a.host;
+      if (!a.name.empty()) r.text += " " + a.name;
+      v.rows.push_back(r);
+      if (a.severity == "critical") v.critCount++;
+      else if (a.severity == "warning") v.warnCount++;
     }
+    v.omitted = last.omitted;
+    v.total = (int)last.alarms.size() + last.omitted;
   }
   // LED tri-state mirrors computeSignaltower: empty -> off, any unacked -> fast blink,
   // all acked -> solid. (The acked flag is the contract's per-alarm ack state, §3.1.)
@@ -22,7 +29,7 @@ ViewState computeView(const ListPayload& last, const Heartbeat& hb, bool heartbe
     for (const auto& a : last.alarms)
       if (!a.acked) { anyUnacked = true; break; }
   if (last.alarms.empty()) v.led = LedMode::OFF;
-  else if (anyUnacked)     v.led = LedMode::BLINK_FAST;
+  else if (anyUnacked || (last.valid && last.omitted_unacked > 0)) v.led = LedMode::BLINK_FAST;
   else                     v.led = LedMode::SOLID;
 
   // Connection status from the heartbeat.

@@ -8,7 +8,7 @@ void AppCore::setList(const ListPayload& list) {
   reconcileFocus(prevId);
   // An ack from ANY source (button, wall switch, remote, panel) arrives as acked:true in the
   // republished list. Nothing left to attend to -> end the urgent window (Phase 2, strand 1).
-  if (firstUnacked() < 0) urgentUntilMs_ = 0;
+  if (firstUnacked() < 0 && list_.omitted_unacked == 0) urgentUntilMs_ = 0;
 }
 
 std::string AppCore::focusId() const {
@@ -100,7 +100,9 @@ RenderModel AppCore::render(uint32_t nowMs) {
   m.sound = (nowMs < urgentUntilMs_ && !muted_) ? AlertSound::URGENT : AlertSound::OFF;
   m.count = v.count;
   m.maxSeverity = v.maxSeverity;
-  m.lines = v.lines;
+  m.rows = v.rows;
+  m.critCount = v.critCount; m.warnCount = v.warnCount;
+  m.omitted = v.omitted;     m.total = v.total;
   m.selectedIdx = selectedIdx_;
 
   if (v.conn != Conn::OK) {
