@@ -22,8 +22,7 @@ public:
 
   void setStatusLed(alarmcore::StatusLedMode mode) override;
   void playAlertSound(alarmcore::AlertSound level) override;
-  void showAlarmList(const std::vector<std::string>& lines, int selectedIdx,
-                     const std::string& maxSeverity) override;
+  void showAlarmList(const alarmcore::ListView& v) override;
   void showAlarmDetail(const std::string& text) override;
   void showStatus(const std::string& line) override;
 

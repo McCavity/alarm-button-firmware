@@ -1,5 +1,6 @@
 #include "parser.h"
 #include <ArduinoJson.h>
+#include <algorithm>
 
 namespace alarmcore {
 
@@ -12,6 +13,10 @@ ListPayload parseList(const char* json) {
   out.device_id = std::string(doc["device_id"] | "");
   out.count = doc["count"] | 0;
   out.max_severity = std::string(doc["max_severity"] | "");
+  out.omitted = std::max(0, (int)(doc["omitted"] | 0));
+  out.omitted_unacked = std::max(0, (int)(doc["omitted_unacked"] | 0));
+  // fail-safe: never fewer hidden alarms than hidden unacked ones (errs towards attention)
+  out.omitted = std::max(out.omitted, out.omitted_unacked);
   for (JsonObjectConst a : doc["alarms"].as<JsonArrayConst>()) {
     Alarm al;
     al.id = std::string(a["id"] | "");

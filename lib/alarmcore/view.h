@@ -11,13 +11,23 @@ namespace alarmcore {
 enum class LedMode { OFF, BLINK_FAST, SOLID };
 enum class Conn { OK, GRAFANA_DOWN, IOBROKER_DOWN };
 
+struct Row {
+  std::string severity;   // "critical" | "warning" | "info"
+  bool acked = false;
+  std::string text;       // "host name"
+};
+
 struct ViewState {
   LedMode led = LedMode::OFF;
   int count = 0;
   std::string maxSeverity;
-  std::vector<std::string> lines;    // "host name" per alarm
+  std::vector<Row> rows;    // structured alarm rows
+  int critCount = 0;
+  int warnCount = 0;
+  int omitted = 0;
+  int total = 0;            // alarms.size() + omitted
   Conn conn = Conn::OK;
-  std::string statusText;            // "OK" | "Grafana?" | "ioBroker?"
+  std::string statusText;   // "OK" | "Grafana?" | "ioBroker?"
 };
 
 // heartbeatStale=true -> ioBroker connection dead (no heartbeat past the stale threshold;

@@ -4,6 +4,7 @@
 #include "debounce.h"
 #include "quadrature.h"
 #include "pressclassifier.h"
+#include "scroll.h"
 #include "appcore.h"
 
 using namespace alarmcore;
@@ -64,6 +65,53 @@ void test_parseList_acked_missing_defaults_false() {
   TEST_ASSERT_FALSE(p.alarms[0].acked);
 }
 
+void test_parseList_omitted() {
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":8,"omitted_unacked":3,"alarms":[{"id":"a","host":"h","severity":"warning"}]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(8, p.omitted);
+  TEST_ASSERT_EQUAL_INT(3, p.omitted_unacked);
+}
+
+void test_parseList_omitted_missing_defaults_zero() {
+  ListPayload p = parseList(LIST_JSON);
+  TEST_ASSERT_EQUAL_INT(0, p.omitted);
+  TEST_ASSERT_EQUAL_INT(0, p.omitted_unacked);
+}
+
+void test_parseList_omitted_negative_clamped_to_zero() {
+  // Fail-unsafe otherwise: a negative omitted subtracts from the visible alarm count
+  // downstream (totalAlarms = alarms.size() + omitted) and can turn the LED off while
+  // an alarm is still unacked. Never let the server's field go negative.
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":-5,"alarms":[{"id":"a","host":"h","severity":"warning","acked":false}]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(0, p.omitted);
+}
+
+void test_view_omitted_negative_still_blinks() {
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":-5,"alarms":[{"id":"a","host":"h","severity":"warning","acked":false}]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+  TEST_ASSERT_EQUAL_INT(1, v.total);
+}
+
+void test_parseList_omitted_unacked_without_omitted_clamped() {
+  // omitted_unacked > omitted (here omitted==0, empty alarms[]) must never yield fewer
+  // hidden alarms than hidden UNACKED ones -> errs towards attention.
+  ListPayload p = parseList(R"({"count":0,"omitted":0,"omitted_unacked":2,"alarms":[]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(2, p.omitted);
+}
+
+void test_view_omitted_unacked_without_omitted_blinks() {
+  ListPayload p = parseList(R"({"count":0,"omitted":0,"omitted_unacked":2,"alarms":[]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+  TEST_ASSERT_TRUE(v.total >= 2);
+}
+
 void test_parseHeartbeat_ok() {
   Heartbeat h = parseHeartbeat(R"({"schema_version":1,"grafana_ok":true,"poll_age_s":8})");
   TEST_ASSERT_TRUE(h.valid);
@@ -90,8 +138,9 @@ void test_view_alarms_blink_ok() {
   Heartbeat h; h.valid = true; h.grafana_ok = true; h.poll_age_s = 2;
   ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
-  TEST_ASSERT_EQUAL_INT(2, (int)v.lines.size());
-  TEST_ASSERT_EQUAL_STRING("host01 USV auf Batterie", v.lines[0].c_str());
+  TEST_ASSERT_EQUAL_INT(2, (int)v.rows.size());
+  TEST_ASSERT_EQUAL_STRING("host01 USV auf Batterie", v.rows[0].text.c_str());
+  TEST_ASSERT_EQUAL_STRING("critical", v.rows[0].severity.c_str());
   TEST_ASSERT_EQUAL_STRING("OK", v.statusText.c_str());
 }
 
@@ -140,6 +189,42 @@ void test_view_grafana_down() {
   ViewState v = computeView(p, h, false);
   TEST_ASSERT_EQUAL_INT((int)Conn::GRAFANA_DOWN, (int)v.conn);
   TEST_ASSERT_EQUAL_STRING("Grafana?", v.statusText.c_str());
+}
+
+void test_view_counts_crit_warn() {
+  ListPayload p = parseList(LIST_JSON);        // 1 critical, 1 warning
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT(1, v.critCount);
+  TEST_ASSERT_EQUAL_INT(1, v.warnCount);
+  TEST_ASSERT_EQUAL_INT(2, v.total);
+}
+
+void test_view_total_includes_omitted() {
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":8,"omitted_unacked":0,"alarms":[{"id":"a","host":"h","severity":"warning","acked":true}]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT(9, v.total);
+  TEST_ASSERT_EQUAL_INT(8, v.omitted);
+  TEST_ASSERT_TRUE(v.rows[0].acked);
+}
+
+void test_view_omitted_unacked_keeps_led_blinking() {
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":8,"omitted_unacked":2,"alarms":[{"id":"a","host":"h","severity":"warning","acked":true}]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);   // sichtbar alle acked, versteckt 2 offen
+}
+
+void test_view_empty_visible_but_omitted_unacked_blinks() {
+  ListPayload p = parseList(R"({"count":0,"omitted":3,"omitted_unacked":2,"alarms":[]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+}
+
+void test_view_empty_visible_omitted_all_acked_solid() {
+  ListPayload p = parseList(R"({"count":0,"omitted":3,"omitted_unacked":0,"alarms":[]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)v.led);
 }
 
 void test_debounce_stabilizes_after_window() {
@@ -356,6 +441,17 @@ void test_appcore_urgent_continues_while_unacked_remains() {
   TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(1000).sound);
 }
 
+void test_appcore_urgent_continues_when_only_omitted_unacked() {
+  AppCore app; app.setList(makeList(1));
+  NewPayload n; n.valid = true; n.count_new = 1; n.max_severity = "warning";
+  app.onNew(n);
+  app.render(0);
+  ListPayload p = makeListAllAcked(1);
+  p.omitted = 5; p.omitted_unacked = 1;
+  app.setList(p);
+  TEST_ASSERT_EQUAL_INT((int)AlertSound::URGENT, (int)app.render(1000).sound);
+}
+
 void test_appcore_ack_one_captures_focus_id() {
   AppCore app; app.setList(makeList(3));        // focus -> id0 (first unacked)
   app.acknowledge();
@@ -405,6 +501,45 @@ void test_appcore_conn_down_shows_status() {
   TEST_ASSERT_EQUAL_STRING("ioBroker?", m.statusText.c_str());
 }
 
+void test_scroll_keeps_top_when_focus_visible() {
+  TEST_ASSERT_EQUAL_INT(0, scrollTop(3, 22, 7, 0));
+  TEST_ASSERT_EQUAL_INT(5, scrollTop(8, 22, 7, 5));
+}
+
+void test_scroll_follows_focus_down() {
+  TEST_ASSERT_EQUAL_INT(1, scrollTop(7, 22, 7, 0));    // focus 7 → window 1..7
+  TEST_ASSERT_EQUAL_INT(15, scrollTop(21, 22, 7, 0));  // last item
+}
+
+void test_scroll_follows_focus_up() {
+  TEST_ASSERT_EQUAL_INT(2, scrollTop(2, 22, 7, 10));
+}
+
+void test_scroll_clamps_short_list() {
+  TEST_ASSERT_EQUAL_INT(0, scrollTop(3, 4, 7, 5));     // fewer items than rows
+  TEST_ASSERT_EQUAL_INT(0, scrollTop(0, 0, 7, 3));     // empty
+}
+
+void test_scroll_clamps_when_list_shrinks_while_scrolled() {
+  TEST_ASSERT_EQUAL_INT(3, scrollTop(9, 10, 7, 5));    // list shrank while scrolled
+}
+
+void test_appcore_scroll_shows_omitted_row_at_bottom() {
+  AppCore app; ListPayload p = makeListAllAcked(10); p.omitted = 4;
+  app.setList(p);
+  app.nav(+9);                                          // last real item
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT(4, m.scrollTop);                // window 4..10 includes virtual row 10
+}
+
+void test_appcore_scroll_follows_nav() {
+  AppCore app; app.setList(makeListAllAcked(22));
+  app.nav(+8);
+  TEST_ASSERT_EQUAL_INT(2, app.render().scrollTop);
+  app.nav(-8);
+  TEST_ASSERT_EQUAL_INT(0, app.render().scrollTop);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_debounce_stabilizes_after_window);
@@ -425,12 +560,20 @@ int main(int, char**) {
   RUN_TEST(test_appcore_urgent_stops_on_external_ack);
   RUN_TEST(test_appcore_urgent_stops_when_list_empties);
   RUN_TEST(test_appcore_urgent_continues_while_unacked_remains);
+  RUN_TEST(test_appcore_urgent_continues_when_only_omitted_unacked);
   RUN_TEST(test_appcore_ack_one_captures_focus_id);
   RUN_TEST(test_appcore_ack_one_optimistic_advance);
   RUN_TEST(test_appcore_ack_one_last_goes_solid_list);
   RUN_TEST(test_appcore_ack_one_no_focus_when_empty);
   RUN_TEST(test_appcore_new_list_reclamps_selection);
   RUN_TEST(test_appcore_conn_down_shows_status);
+  RUN_TEST(test_scroll_keeps_top_when_focus_visible);
+  RUN_TEST(test_scroll_follows_focus_down);
+  RUN_TEST(test_scroll_follows_focus_up);
+  RUN_TEST(test_scroll_clamps_short_list);
+  RUN_TEST(test_scroll_clamps_when_list_shrinks_while_scrolled);
+  RUN_TEST(test_appcore_scroll_shows_omitted_row_at_bottom);
+  RUN_TEST(test_appcore_scroll_follows_nav);
   RUN_TEST(test_appcore_triage_enters_detail_on_unacked);
   RUN_TEST(test_appcore_triage_all_acked_shows_list);
   RUN_TEST(test_appcore_triage_focus_held_across_republish);
@@ -443,6 +586,12 @@ int main(int, char**) {
   RUN_TEST(test_parseList_host_failsafe);
   RUN_TEST(test_parseList_acked);
   RUN_TEST(test_parseList_acked_missing_defaults_false);
+  RUN_TEST(test_parseList_omitted);
+  RUN_TEST(test_parseList_omitted_missing_defaults_zero);
+  RUN_TEST(test_parseList_omitted_negative_clamped_to_zero);
+  RUN_TEST(test_view_omitted_negative_still_blinks);
+  RUN_TEST(test_parseList_omitted_unacked_without_omitted_clamped);
+  RUN_TEST(test_view_omitted_unacked_without_omitted_blinks);
   RUN_TEST(test_parseHeartbeat_ok);
   RUN_TEST(test_parseHeartbeat_age_null);
   RUN_TEST(test_parseNew_ok);
@@ -453,5 +602,10 @@ int main(int, char**) {
   RUN_TEST(test_view_count_nonzero_empty_alarms_off);
   RUN_TEST(test_view_stale_iobroker_down);
   RUN_TEST(test_view_grafana_down);
+  RUN_TEST(test_view_counts_crit_warn);
+  RUN_TEST(test_view_total_includes_omitted);
+  RUN_TEST(test_view_omitted_unacked_keeps_led_blinking);
+  RUN_TEST(test_view_empty_visible_but_omitted_unacked_blinks);
+  RUN_TEST(test_view_empty_visible_omitted_all_acked_solid);
   return UNITY_END();
 }

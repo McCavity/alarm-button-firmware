@@ -1,4 +1,5 @@
 #include "AxiometaHAL.h"
+#include "scroll.h"
 #include <Arduino.h>
 #include <SPI.h>
 
@@ -28,6 +29,14 @@ void AxiometaHAL::init() {
   tft_.initR(INITR_MINI160x80);
   tft_.invertDisplay(false);
   tft_.setRotation(3);
+
+  // This AX22 panel is BGR, but Adafruit hard-codes RGB in MADCTL for INITR_MINI160x80
+  // (red rendered blue, orange cyan — device test 2026-09-23). Same orientation bits as
+  // setRotation(3) for this tab (MX|MV), only the colour-order bit flipped. Must follow
+  // every setRotation() call, which rewrites MADCTL.
+  uint8_t madctl = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST7735_MADCTL_BGR;
+  tft_.sendCommand(ST77XX_MADCTL, &madctl, 1);
+
   tft_.setTextWrap(false);
   tft_.fillScreen(ST77XX_BLACK);
   lastSig_.clear();
@@ -103,36 +112,66 @@ uint16_t AxiometaHAL::severityColor(const std::string& sev) const {
   return ST77XX_WHITE;   // info / unknown
 }
 
-void AxiometaHAL::showAlarmList(const std::vector<std::string>& lines, int selectedIdx,
-                                const std::string& maxSeverity) {
-  std::string sig = "L|" + std::to_string(selectedIdx) + "|" + maxSeverity;
-  for (const auto& l : lines) sig += "|" + l;
+static const uint16_t COL_GREY = 0x7BEF;
+
+void AxiometaHAL::showAlarmList(const alarmcore::ListView& v) {
+  std::string sig;
+  sig.reserve(64 + 48 * v.rows.size());
+  sig += "L|"; sig += std::to_string(v.selectedIdx); sig += "|"; sig += std::to_string(v.scrollTop); sig += "|";
+  sig += v.maxSeverity; sig += "|"; sig += std::to_string(v.total); sig += "|"; sig += std::to_string(v.critCount); sig += "|";
+  sig += std::to_string(v.warnCount); sig += "|"; sig += std::to_string(v.omitted);
+  for (const auto& r : v.rows) { sig += "|"; sig += r.severity; sig += (r.acked ? "+" : "-"); sig += r.text; }
   if (sig == lastSig_) return;     // unchanged -> skip redraw (no flicker)
   lastSig_ = sig;
 
   tft_.fillScreen(ST77XX_BLACK);
   tft_.setTextSize(1);
 
+  // Header: "ALARMS 22|CRIT 5|WARN 17" (24 chars; the spaced variant would need 28 of 26)
   tft_.setCursor(2, 2);
-  tft_.setTextColor(lines.empty() ? ST77XX_GREEN : severityColor(maxSeverity));
-  tft_.printf("ALARMS %d", (int)lines.size());
+  tft_.setTextColor(v.total == 0 ? ST77XX_GREEN : severityColor(v.maxSeverity));
+  tft_.printf("ALARMS %d", v.total);
+  if (v.critCount > 0) { tft_.setTextColor(ST77XX_WHITE); tft_.print("|"); tft_.setTextColor(ST77XX_RED);  tft_.printf("CRIT %d", v.critCount); }
+  if (v.warnCount > 0) { tft_.setTextColor(ST77XX_WHITE); tft_.print("|"); tft_.setTextColor(COL_ORANGE); tft_.printf("WARN %d", v.warnCount); }
+  tft_.fillCircle(tft_.width() - 5, 5, 2, ST77XX_GREEN);   // link-OK dot, moved up (scrollbar owns the right edge)
   tft_.drawFastHLine(0, 12, tft_.width(), ST77XX_WHITE);
 
-  int y = 16;
-  const int rowH = 9;
-  int maxRows = (tft_.height() - y) / rowH;
-  for (int i = 0; i < (int)lines.size() && i < maxRows; i++) {
-    bool sel = (i == selectedIdx);
-    if (sel) tft_.fillRect(0, y - 1, tft_.width(), rowH, ST77XX_WHITE);
-    tft_.setTextColor(sel ? ST77XX_BLACK : ST77XX_WHITE);
-    tft_.setCursor(2, y);
-    tft_.print(sel ? ">" : " ");
-    tft_.print(lines[i].substr(0, 25).c_str());
-    y += rowH;
+  const int top = 16, rowH = 9, rows = alarmcore::LIST_ROWS;
+  const int n = (int)v.rows.size();
+  const int virt = v.omitted > 0 ? 1 : 0;
+  int y = top;
+  for (int i = v.scrollTop; i < n + virt && i < v.scrollTop + rows; i++, y += rowH) {
+    if (i == n) {                                   // virtual "+N more" row, never selectable
+      tft_.setTextColor(COL_GREY);
+      tft_.setCursor(9, y);
+      tft_.printf("+%d weitere", v.omitted);
+      continue;
+    }
+    const alarmcore::Row& r = v.rows[i];
+    bool sel = (i == v.selectedIdx);
+    if (sel) tft_.fillRect(0, y - 1, tft_.width() - 4, rowH, ST77XX_WHITE);
+    uint16_t dotColor = severityColor(r.severity);
+    if (sel && dotColor == ST77XX_WHITE) dotColor = ST77XX_BLACK;   // else invisible on the white selection bar
+    tft_.fillCircle(4, y + 3, 2, dotColor);
+    tft_.setTextColor(sel ? ST77XX_BLACK : (r.acked ? COL_GREY : ST77XX_WHITE));
+    tft_.setCursor(9, y);
+    tft_.print(r.text.substr(0, 22).c_str());
+    if (r.acked) {                                  // grey check: seen, NOT resolved
+      uint16_t c = sel ? ST77XX_BLACK : COL_GREY;
+      tft_.drawLine(146, y + 4, 148, y + 6, c);
+      tft_.drawLine(148, y + 6, 152, y + 1, c);
+    }
   }
 
-  // connection-OK dot (the list screen is only shown when the link is up)
-  tft_.fillCircle(tft_.width() - 5, tft_.height() - 5, 2, ST77XX_GREEN);
+  // Scrollbar (2 px, right edge) only when the list is longer than the window
+  const int totalRows = n + virt;
+  if (totalRows > rows) {
+    const int trackY = top - 2, trackH = tft_.height() - trackY;
+    int thumbH = trackH * rows / totalRows; if (thumbH < 4) thumbH = 4;
+    int thumbY = trackY + trackH * v.scrollTop / totalRows;
+    tft_.fillRect(tft_.width() - 2, trackY, 2, trackH, 0x2104);
+    tft_.fillRect(tft_.width() - 2, thumbY, 2, thumbH, ST77XX_WHITE);
+  }
 }
 
 void AxiometaHAL::showAlarmDetail(const std::string& text) {
