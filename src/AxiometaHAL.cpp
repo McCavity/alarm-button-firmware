@@ -29,6 +29,14 @@ void AxiometaHAL::init() {
   tft_.initR(INITR_MINI160x80);
   tft_.invertDisplay(false);
   tft_.setRotation(3);
+
+  // This AX22 panel is BGR, but Adafruit hard-codes RGB in MADCTL for INITR_MINI160x80
+  // (red rendered blue, orange cyan — device test 2026-09-23). Same orientation bits as
+  // setRotation(3) for this tab (MX|MV), only the colour-order bit flipped. Must follow
+  // every setRotation() call, which rewrites MADCTL.
+  uint8_t madctl = ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST7735_MADCTL_BGR;
+  tft_.sendCommand(ST77XX_MADCTL, &madctl, 1);
+
   tft_.setTextWrap(false);
   tft_.fillScreen(ST77XX_BLACK);
   lastSig_.clear();
