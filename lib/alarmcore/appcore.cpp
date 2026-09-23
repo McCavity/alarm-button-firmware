@@ -105,6 +105,14 @@ RenderModel AppCore::render(uint32_t nowMs) {
   m.omitted = v.omitted;     m.total = v.total;
   m.selectedIdx = selectedIdx_;
 
+  // The "+N more" line is a virtual row after the last alarm: show it when the cursor sits
+  // on the last real item, so the list never looks complete while it is not.
+  int n = (int)v.rows.size();
+  int virt = v.omitted > 0 ? 1 : 0;
+  int focus = (virt && selectedIdx_ == n - 1) ? n : selectedIdx_;
+  scrollTop_ = scrollTop(focus, n + virt, LIST_ROWS, scrollTop_);
+  m.scrollTop = scrollTop_;
+
   if (v.conn != Conn::OK) {
     m.screen = Screen::STATUS;
     m.statusText = v.statusText;

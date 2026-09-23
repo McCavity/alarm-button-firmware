@@ -4,6 +4,7 @@
 #include "debounce.h"
 #include "quadrature.h"
 #include "pressclassifier.h"
+#include "scroll.h"
 #include "appcore.h"
 
 using namespace alarmcore;
@@ -467,6 +468,41 @@ void test_appcore_conn_down_shows_status() {
   TEST_ASSERT_EQUAL_STRING("ioBroker?", m.statusText.c_str());
 }
 
+void test_scroll_keeps_top_when_focus_visible() {
+  TEST_ASSERT_EQUAL_INT(0, scrollTop(3, 22, 7, 0));
+  TEST_ASSERT_EQUAL_INT(5, scrollTop(8, 22, 7, 5));
+}
+
+void test_scroll_follows_focus_down() {
+  TEST_ASSERT_EQUAL_INT(1, scrollTop(7, 22, 7, 0));    // focus 7 → window 1..7
+  TEST_ASSERT_EQUAL_INT(15, scrollTop(21, 22, 7, 0));  // last item
+}
+
+void test_scroll_follows_focus_up() {
+  TEST_ASSERT_EQUAL_INT(2, scrollTop(2, 22, 7, 10));
+}
+
+void test_scroll_clamps_short_list() {
+  TEST_ASSERT_EQUAL_INT(0, scrollTop(3, 4, 7, 5));     // fewer items than rows
+  TEST_ASSERT_EQUAL_INT(0, scrollTop(0, 0, 7, 3));     // empty
+}
+
+void test_appcore_scroll_shows_omitted_row_at_bottom() {
+  AppCore app; ListPayload p = makeListAllAcked(10); p.omitted = 4;
+  app.setList(p);
+  app.nav(+9);                                          // last real item
+  RenderModel m = app.render();
+  TEST_ASSERT_EQUAL_INT(4, m.scrollTop);                // window 4..10 includes virtual row 10
+}
+
+void test_appcore_scroll_follows_nav() {
+  AppCore app; app.setList(makeListAllAcked(22));
+  app.nav(+8);
+  TEST_ASSERT_EQUAL_INT(2, app.render().scrollTop);
+  app.nav(-8);
+  TEST_ASSERT_EQUAL_INT(0, app.render().scrollTop);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_debounce_stabilizes_after_window);
@@ -494,6 +530,12 @@ int main(int, char**) {
   RUN_TEST(test_appcore_ack_one_no_focus_when_empty);
   RUN_TEST(test_appcore_new_list_reclamps_selection);
   RUN_TEST(test_appcore_conn_down_shows_status);
+  RUN_TEST(test_scroll_keeps_top_when_focus_visible);
+  RUN_TEST(test_scroll_follows_focus_down);
+  RUN_TEST(test_scroll_follows_focus_up);
+  RUN_TEST(test_scroll_clamps_short_list);
+  RUN_TEST(test_appcore_scroll_shows_omitted_row_at_bottom);
+  RUN_TEST(test_appcore_scroll_follows_nav);
   RUN_TEST(test_appcore_triage_enters_detail_on_unacked);
   RUN_TEST(test_appcore_triage_all_acked_shows_list);
   RUN_TEST(test_appcore_triage_focus_held_across_republish);

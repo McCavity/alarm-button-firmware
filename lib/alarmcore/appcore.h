@@ -1,6 +1,7 @@
 #pragma once
 #include "contract.h"
 #include "view.h"
+#include "scroll.h"
 #include "hal.h"
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@ struct RenderModel {
   std::vector<Row> rows;             // LIST: structured alarm rows
   int critCount = 0, warnCount = 0, omitted = 0, total = 0;
   int selectedIdx = 0;               // LIST
+  int scrollTop = 0;                 // first visible row index
   int count = 0;
   std::string maxSeverity;           // LIST header colour
   std::string detailText;            // DETAIL
@@ -61,6 +63,7 @@ private:
   uint32_t    urgentUntilMs_ = 0;          // urgent-sound window deadline (0 = not sounding)
   bool        ackPending_ = false;
   std::string ackId_;
+  int         scrollTop_ = 0;              // cached scroll position (hysteresis)
 };
 
 } // namespace alarmcore
