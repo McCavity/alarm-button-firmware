@@ -181,6 +181,18 @@ void test_view_omitted_unacked_keeps_led_blinking() {
   TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);   // sichtbar alle acked, versteckt 2 offen
 }
 
+void test_view_empty_visible_but_omitted_unacked_blinks() {
+  ListPayload p = parseList(R"({"count":0,"omitted":3,"omitted_unacked":2,"alarms":[]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::BLINK_FAST, (int)v.led);
+}
+
+void test_view_empty_visible_omitted_all_acked_solid() {
+  ListPayload p = parseList(R"({"count":0,"omitted":3,"omitted_unacked":0,"alarms":[]})");
+  ViewState v = computeView(p, Heartbeat{}, false);
+  TEST_ASSERT_EQUAL_INT((int)LedMode::SOLID, (int)v.led);
+}
+
 void test_debounce_stabilizes_after_window() {
   Debouncer d(5);
   TEST_ASSERT_FALSE(d.update(true, 0));    // raw high, but not yet stable
@@ -509,5 +521,7 @@ int main(int, char**) {
   RUN_TEST(test_view_counts_crit_warn);
   RUN_TEST(test_view_total_includes_omitted);
   RUN_TEST(test_view_omitted_unacked_keeps_led_blinking);
+  RUN_TEST(test_view_empty_visible_but_omitted_unacked_blinks);
+  RUN_TEST(test_view_empty_visible_omitted_all_acked_solid);
   return UNITY_END();
 }
