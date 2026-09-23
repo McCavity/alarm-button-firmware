@@ -12,6 +12,8 @@ ListPayload parseList(const char* json) {
   out.device_id = std::string(doc["device_id"] | "");
   out.count = doc["count"] | 0;
   out.max_severity = std::string(doc["max_severity"] | "");
+  out.omitted = doc["omitted"] | 0;
+  out.omitted_unacked = doc["omitted_unacked"] | 0;
   for (JsonObjectConst a : doc["alarms"].as<JsonArrayConst>()) {
     Alarm al;
     al.id = std::string(a["id"] | "");

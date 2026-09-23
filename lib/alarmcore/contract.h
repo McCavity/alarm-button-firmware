@@ -23,6 +23,8 @@ struct ListPayload {
   int count = 0;
   std::string max_severity;  // "" when the list is empty
   std::vector<Alarm> alarms;
+  int omitted = 0;           // alarms dropped by ioBroker's byte budget (contract §3.1, additive)
+  int omitted_unacked = 0;   // of those, how many are still unacked (keeps the LED honest)
 };
 
 struct NewPayload {

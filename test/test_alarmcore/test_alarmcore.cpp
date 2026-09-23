@@ -64,6 +64,20 @@ void test_parseList_acked_missing_defaults_false() {
   TEST_ASSERT_FALSE(p.alarms[0].acked);
 }
 
+void test_parseList_omitted() {
+  ListPayload p = parseList(
+    R"({"count":1,"omitted":8,"omitted_unacked":3,"alarms":[{"id":"a","host":"h","severity":"warning"}]})");
+  TEST_ASSERT_TRUE(p.valid);
+  TEST_ASSERT_EQUAL_INT(8, p.omitted);
+  TEST_ASSERT_EQUAL_INT(3, p.omitted_unacked);
+}
+
+void test_parseList_omitted_missing_defaults_zero() {
+  ListPayload p = parseList(LIST_JSON);
+  TEST_ASSERT_EQUAL_INT(0, p.omitted);
+  TEST_ASSERT_EQUAL_INT(0, p.omitted_unacked);
+}
+
 void test_parseHeartbeat_ok() {
   Heartbeat h = parseHeartbeat(R"({"schema_version":1,"grafana_ok":true,"poll_age_s":8})");
   TEST_ASSERT_TRUE(h.valid);
@@ -443,6 +457,8 @@ int main(int, char**) {
   RUN_TEST(test_parseList_host_failsafe);
   RUN_TEST(test_parseList_acked);
   RUN_TEST(test_parseList_acked_missing_defaults_false);
+  RUN_TEST(test_parseList_omitted);
+  RUN_TEST(test_parseList_omitted_missing_defaults_zero);
   RUN_TEST(test_parseHeartbeat_ok);
   RUN_TEST(test_parseHeartbeat_age_null);
   RUN_TEST(test_parseNew_ok);
