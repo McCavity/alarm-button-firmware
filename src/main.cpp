@@ -60,7 +60,14 @@ void loop() {
   hal.setStatusLed(toStatusLed(m.led));
   hal.playAlertSound(m.sound);
   switch (m.screen) {
-    case Screen::LIST:   hal.showAlarmList(m.lines, m.selectedIdx, m.maxSeverity); break;
+    case Screen::LIST: {
+      ListView lv;
+      lv.rows = m.rows; lv.selectedIdx = m.selectedIdx; lv.scrollTop = m.scrollTop;
+      lv.maxSeverity = m.maxSeverity; lv.critCount = m.critCount; lv.warnCount = m.warnCount;
+      lv.omitted = m.omitted; lv.total = m.total;
+      hal.showAlarmList(lv);
+      break;
+    }
     case Screen::DETAIL: hal.showAlarmDetail(m.detailText);                        break;
     case Screen::STATUS: hal.showStatus(m.statusText);                            break;
   }

@@ -1,4 +1,5 @@
 #pragma once
+#include "view.h"
 #include <string>
 #include <vector>
 
@@ -11,6 +12,14 @@ namespace alarmcore {
 
 enum class StatusLedMode { OFF, SOLID, BLINK_SLOW, BLINK_FAST };
 enum class AlertSound { OFF, SHORT_BEEP, URGENT };
+
+struct ListView {
+  std::vector<Row> rows;
+  int selectedIdx = 0;
+  int scrollTop = 0;
+  std::string maxSeverity;
+  int critCount = 0, warnCount = 0, omitted = 0, total = 0;
+};
 
 class AlarmButtonHAL {
 public:
@@ -27,8 +36,7 @@ public:
   // Outputs — actuators
   virtual void setStatusLed(StatusLedMode mode) = 0;
   virtual void playAlertSound(AlertSound level) = 0;
-  virtual void showAlarmList(const std::vector<std::string>& lines, int selectedIdx,
-                             const std::string& maxSeverity) = 0;
+  virtual void showAlarmList(const ListView& v) = 0;
   virtual void showAlarmDetail(const std::string& text) = 0;
   virtual void showStatus(const std::string& line) = 0;
 };
